@@ -1,0 +1,731 @@
+// Najahni - schema de la base de donnees
+// Montants en TND : Decimal(10,3) (le dinar compte 1000 millimes, jamais de Float pour l'argent)
+
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================================
+// Enums
+// ============================================================
+
+enum Role {
+  ADMIN
+  TEACHER
+  STUDENT
+  PARENT
+}
+
+enum SessionStatus {
+  PLANNED
+  IN_PROGRESS
+  DONE
+  CANCELLED
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+}
+
+enum InstallmentStatus {
+  UNPAID
+  PARTIAL
+  PAID
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  TRANSFER
+  D17
+  OTHER
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+  SMS
+  WHATSAPP
+  PUSH
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+  READ
+  CANCELLED // devenu inutile avant l'envoi (eleve finalement present, serie payee...)
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum QuestionType {
+  MCQ
+  SHORT_ANSWER
+  ESSAY
+  PROBLEM
+  CODE
+}
+
+enum SubmissionStatus {
+  DRAFT
+  SUBMITTED
+  CORRECTING
+  PENDING_REVIEW
+  PUBLISHED
+  FAILED
+}
+
+enum CorrectionSource {
+  AUTO_MCQ
+  AI
+  TEACHER
+}
+
+enum CorrectionStatus {
+  PROPOSED
+  ACCEPTED
+  MODIFIED
+  REJECTED
+}
+
+// ============================================================
+// Utilisateurs et authentification
+// ============================================================
+
+model User {
+  id           String    @id @default(uuid())
+  email        String?   @unique
+  phone        String?   @unique
+  passwordHash String
+  role         Role
+  firstName    String
+  lastName     String
+  locale       String    @default("fr")
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  student Student?
+  parent  Parent?
+  teacher Teacher?
+
+  refreshTokens    RefreshToken[]
+  passwordResets   PasswordReset[]
+  notifications    Notification[]
+  sentMessages     Message[]       @relation("MessageSender")
+  receivedMessages Message[]       @relation("MessageRecipient")
+  auditLogs        AuditLog[]
+  paymentsReceived Payment[]
+  uploads          Attachment[]
+
+  @@index([role])
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  userAgent String?
+  ip        String?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model PasswordReset {
+  id        String    @id @default(uuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("password_resets")
+}
+
+// ============================================================
+// Profils
+// ============================================================
+
+model Student {
+  id          String    @id @default(uuid())
+  userId      String    @unique
+  level       String // ex: "Bac", "3eme", "2eme"
+  section     String // ex: "Info", "Science", "Eco"
+  parentPhone String?
+  monthlyFee  Decimal?  @db.Decimal(10, 3) // tarif negocie, sinon celui du groupe
+  birthDate   DateTime? @db.Date
+  archivedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user          User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parents       ParentStudent[]
+  groups        GroupStudent[]
+  attendances   Attendance[]
+  installments  Installment[]
+  assignments   ExerciseAssignment[]
+  submissions   Submission[]
+  evaluations   StudentEvaluation[]
+  messages      Message[]
+  notifications Notification[]
+
+  @@index([level, section])
+  @@map("students")
+}
+
+model Parent {
+  id                      String   @id @default(uuid())
+  userId                  String   @unique
+  notificationPreferences Json     @default("{}")
+  createdAt               DateTime @default(now())
+
+  user     User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  children ParentStudent[]
+
+  @@map("parents")
+}
+
+model ParentStudent {
+  parentId     String
+  studentId    String
+  relationship String? // pere, mere, tuteur...
+
+  parent  Parent  @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@id([parentId, studentId])
+  @@index([studentId])
+  @@map("parent_students")
+}
+
+model Teacher {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  subjects  String[]
+  createdAt DateTime @default(now())
+
+  user        User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  groups      Group[]
+  sessions    Session[]
+  exercises   Exercise[]
+  assignments ExerciseAssignment[]
+  evaluations StudentEvaluation[]
+  corrections Correction[]
+
+  @@map("teachers")
+}
+
+// ============================================================
+// Groupes, salles, planning
+// ============================================================
+
+model Group {
+  id              String    @id @default(uuid())
+  name            String
+  level           String
+  section         String
+  subject         String
+  teacherId       String
+  monthlySessions Int // nombre de seances par cycle (mois)
+  monthlyFee      Decimal   @db.Decimal(10, 3)
+  capacity        Int
+  archivedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  teacher      Teacher              @relation(fields: [teacherId], references: [id])
+  students     GroupStudent[]
+  sessions     Session[]
+  cycles       BillingCycle[]
+  assignments  ExerciseAssignment[]
+  evaluations  StudentEvaluation[]
+  installments Installment[]
+
+  @@index([teacherId])
+  @@index([level, section])
+  @@map("groups")
+}
+
+model GroupStudent {
+  groupId   String
+  studentId String
+  joinedAt  DateTime  @default(now())
+  leftAt    DateTime?
+
+  group   Group   @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@id([groupId, studentId])
+  @@index([studentId])
+  @@map("group_students")
+}
+
+model Room {
+  id       String  @id @default(uuid())
+  name     String  @unique
+  capacity Int
+  isActive Boolean @default(true)
+
+  sessions Session[]
+
+  @@map("rooms")
+}
+
+model ReviewPeriod {
+  id        String   @id @default(uuid())
+  name      String
+  startDate DateTime @db.Date
+  endDate   DateTime @db.Date
+  createdAt DateTime @default(now())
+
+  sessions    Session[]
+  assignments ExerciseAssignment[]
+
+  @@map("review_periods")
+}
+
+model Session {
+  id             String        @id @default(uuid())
+  groupId        String
+  teacherId      String
+  roomId         String?
+  cycleId        String?
+  reviewPeriodId String? // non nul = seance de revision (planning independant)
+  seriesId       String? // seances creees ensemble (repetition hebdomadaire)
+  startsAt       DateTime
+  endsAt         DateTime
+  status         SessionStatus @default(PLANNED)
+  isOnline       Boolean       @default(false)
+  meetingUrl     String?
+  recordingUrl   String?
+  contentCovered String?
+  homework       String?
+  startedAt      DateTime?
+  endedAt        DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  group        Group         @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  teacher      Teacher       @relation(fields: [teacherId], references: [id])
+  room         Room?         @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  cycle        BillingCycle? @relation(fields: [cycleId], references: [id], onDelete: SetNull)
+  reviewPeriod ReviewPeriod? @relation(fields: [reviewPeriodId], references: [id], onDelete: SetNull)
+  attendances  Attendance[]
+
+  @@index([groupId, startsAt])
+  @@index([teacherId, startsAt])
+  @@index([roomId, startsAt])
+  @@index([seriesId])
+  @@map("sessions")
+}
+
+model Attendance {
+  id        String           @id @default(uuid())
+  sessionId String
+  studentId String
+  status    AttendanceStatus
+  note      String?
+  markedAt  DateTime         @default(now())
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, studentId])
+  @@index([studentId])
+  @@map("attendances")
+}
+
+// ============================================================
+// Facturation : cycle -> echeance -> paiements
+// ============================================================
+
+// Un cycle = un "mois" de N seances d'un groupe ; il se cloture quand toutes ses seances sont faites
+model BillingCycle {
+  id             String    @id @default(uuid())
+  groupId        String
+  number         Int
+  startDate      DateTime  @db.Date
+  sessionsTarget Int // copie de group.monthlySessions a l'ouverture du cycle
+  sessionsDone   Int       @default(0)
+  closedAt       DateTime?
+
+  group        Group         @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  sessions     Session[]
+  installments Installment[]
+
+  @@unique([groupId, number])
+  @@map("billing_cycles")
+}
+
+// Serie payee d'un eleve dans un groupe.
+// Chaque eleve a SA serie de N presences (N = group.monthlySessions) : la serie 1 couvre
+// ses presences 1..N, la serie 2 les presences N+1..2N, etc. La progression et le
+// "a payer" se calculent a partir des presences ; une ligne n'existe que pour une serie payee.
+model Installment {
+  id         String            @id @default(uuid())
+  studentId  String
+  groupId    String
+  number     Int // numero de la serie de l'eleve dans ce groupe (1, 2, 3...)
+  cycleId    String? // ancien modele (mois du groupe), plus utilise
+  amountDue  Decimal           @db.Decimal(10, 3)
+  amountPaid Decimal           @default(0) @db.Decimal(10, 3)
+  dueDate    DateTime?         @db.Date
+  status     InstallmentStatus @default(PAID)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  student  Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  group    Group         @relation(fields: [groupId], references: [id])
+  cycle    BillingCycle? @relation(fields: [cycleId], references: [id], onDelete: SetNull)
+  payments Payment[]
+
+  @@unique([studentId, groupId, number])
+  @@index([groupId])
+  @@map("installments")
+}
+
+model Payment {
+  id            String        @id @default(uuid())
+  installmentId String
+  amount        Decimal       @db.Decimal(10, 3)
+  method        PaymentMethod @default(CASH)
+  receiptNumber Int           @unique @default(autoincrement())
+  paidAt        DateTime      @default(now())
+  receivedById  String?
+  note          String?
+
+  installment Installment @relation(fields: [installmentId], references: [id], onDelete: Cascade)
+  receivedBy  User?       @relation(fields: [receivedById], references: [id], onDelete: SetNull)
+
+  @@index([installmentId])
+  @@index([paidAt])
+  @@map("payments")
+}
+
+// ============================================================
+// Exercices et corrections
+// ============================================================
+
+model Exercise {
+  id          String     @id @default(uuid())
+  authorId    String
+  title       String
+  description String? // consignes courtes ; l'enonce est dans les fichiers joints
+  subject     String
+  level       String
+  section     String?
+  difficulty  Difficulty @default(MEDIUM)
+  statement   Json? // document TipTap (texte riche + formules KaTeX), pour plus tard
+  totalPoints Decimal?   @db.Decimal(6, 2)
+  isArchived  Boolean    @default(false)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  author      Teacher              @relation(fields: [authorId], references: [id])
+  questions   ExerciseQuestion[]
+  assignments ExerciseAssignment[]
+  attachments Attachment[]
+
+  @@index([subject, level, section])
+  @@map("exercises")
+}
+
+model ExerciseQuestion {
+  id          String       @id @default(uuid())
+  exerciseId  String
+  order       Int
+  type        QuestionType
+  prompt      Json
+  points      Decimal      @db.Decimal(6, 2)
+  options     Json? // QCM : [{ id, label }]
+  correctKeys String[] // QCM : ids des bonnes reponses
+  modelAnswer String?
+  criteria    Json? // bareme detaille : [{ label, points }]
+
+  exercise Exercise           @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  answers  SubmissionAnswer[]
+
+  @@unique([exerciseId, order])
+  @@map("exercise_questions")
+}
+
+// Affectation : a un groupe OU un eleve, eventuellement dans une periode de revision
+model ExerciseAssignment {
+  id                        String    @id @default(uuid())
+  exerciseId                String
+  assignedById              String
+  groupId                   String?
+  studentId                 String?
+  reviewPeriodId            String?
+  publishAt                 DateTime  @default(now())
+  dueAt                     DateTime?
+  maxAttempts               Int       @default(1)
+  requiresTeacherValidation Boolean   @default(true)
+  createdAt                 DateTime  @default(now())
+
+  exercise     Exercise      @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  assignedBy   Teacher       @relation(fields: [assignedById], references: [id])
+  group        Group?        @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  student      Student?      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  reviewPeriod ReviewPeriod? @relation(fields: [reviewPeriodId], references: [id], onDelete: SetNull)
+  submissions  Submission[]
+
+  @@index([groupId])
+  @@index([studentId])
+  @@map("exercise_assignments")
+}
+
+model Submission {
+  id           String           @id @default(uuid())
+  assignmentId String
+  studentId    String
+  attempt      Int
+  status       SubmissionStatus @default(DRAFT)
+  submittedAt  DateTime?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  assignment  ExerciseAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  student     Student            @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  answers     SubmissionAnswer[]
+  correction  Correction?
+  aiLogs      AiCorrectionLog[]
+  attachments Attachment[]
+
+  @@unique([assignmentId, studentId, attempt])
+  @@index([studentId, status])
+  @@map("submissions")
+}
+
+model SubmissionAnswer {
+  id           String   @id @default(uuid())
+  submissionId String
+  questionId   String
+  text         String?
+  selectedKeys String[]
+  ocrText      String? // texte extrait d'une photo de copie
+
+  submission Submission       @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  question   ExerciseQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([submissionId, questionId])
+  @@map("submission_answers")
+}
+
+model Correction {
+  id            String           @id @default(uuid())
+  submissionId  String           @unique
+  source        CorrectionSource
+  status        CorrectionStatus @default(PROPOSED)
+  proposedScore Decimal          @db.Decimal(6, 2)
+  finalScore    Decimal?         @db.Decimal(6, 2)
+  maxScore      Decimal          @db.Decimal(6, 2)
+  comment       String?
+  strengths     Json?
+  mistakes      Json?
+  advice        Json?
+  perQuestion   Json? // detail par question
+  confidence    Float?
+  suspicion     Json? // copie, hors sujet...
+  reviewedById  String?
+  reviewedAt    DateTime?
+  publishedAt   DateTime?
+  createdAt     DateTime         @default(now())
+
+  submission Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  reviewedBy Teacher?   @relation(fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@map("corrections")
+}
+
+model AiCorrectionLog {
+  id           String   @id @default(uuid())
+  submissionId String
+  provider     String
+  model        String
+  inputTokens  Int
+  outputTokens Int
+  costUsd      Decimal  @db.Decimal(10, 6)
+  latencyMs    Int
+  success      Boolean
+  error        String?
+  createdAt    DateTime @default(now())
+
+  submission Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@map("ai_correction_logs")
+}
+
+// Fichier stocke sur MinIO / S3 (piece jointe d'exercice, photo de copie, message)
+model Attachment {
+  id           String   @id @default(uuid())
+  storageKey   String   @unique
+  fileName     String
+  mimeType     String
+  size         Int
+  uploadedById String
+  exerciseId   String?
+  submissionId String?
+  messageId    String?
+  createdAt    DateTime @default(now())
+
+  uploadedBy User        @relation(fields: [uploadedById], references: [id])
+  exercise   Exercise?   @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  submission Submission? @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  message    Message?    @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@map("attachments")
+}
+
+// ============================================================
+// Suivi pedagogique, communication, audit
+// ============================================================
+
+model StudentEvaluation {
+  id        String   @id @default(uuid())
+  studentId String
+  teacherId String
+  groupId   String?
+  period    String // ex: "2026-10"
+  rating    Int? // 1..5
+  comment   String
+  createdAt DateTime @default(now())
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  teacher Teacher @relation(fields: [teacherId], references: [id])
+  group   Group?  @relation(fields: [groupId], references: [id], onDelete: SetNull)
+
+  @@index([studentId, period])
+  @@map("student_evaluations")
+}
+
+model Message {
+  id          String    @id @default(uuid())
+  senderId    String
+  recipientId String
+  studentId   String? // enfant concerne (echange parent / enseignant)
+  body        String
+  readAt      DateTime?
+  createdAt   DateTime  @default(now())
+
+  sender      User         @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  recipient   User         @relation("MessageRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  student     Student?     @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  attachments Attachment[]
+
+  @@index([recipientId, readAt])
+  @@index([senderId, recipientId, createdAt])
+  @@map("messages")
+}
+
+model MessageTemplate {
+  id        String              @id @default(uuid())
+  key       String // ex: "payment_reminder", "absence_alert"
+  channel   NotificationChannel
+  locale    String              @default("fr")
+  subject   String?
+  body      String // avec variables {{studentName}}...
+  updatedAt DateTime            @updatedAt
+
+  @@unique([key, channel, locale])
+  @@map("message_templates")
+}
+
+// File d'attente des messages (WhatsApp) : un message = un destinataire.
+// Le destinataire peut ne pas avoir de compte (telephone du parent dans la fiche eleve).
+model Notification {
+  id          String              @id @default(uuid())
+  userId      String?
+  channel     NotificationChannel
+  type        String // "absence", "payment_reminder", "test"
+  title       String?
+  content     String
+  data        Json?
+  status      NotificationStatus  @default(PENDING)
+  phone       String?
+  recipient   String? // nom affiche ("Mohamed Ben Ali (parent)")
+  studentId   String?
+  sessionId   String?
+  /**
+   * Evite les doublons : un meme evenement ne cree qu'un message par destinataire.
+   */
+  dedupeKey   String?             @unique
+  scheduledAt DateTime            @default(now())
+  attempts    Int                 @default(0)
+  error       String?
+  sentAt      DateTime?
+  readAt      DateTime?
+  createdAt   DateTime            @default(now())
+
+  user    User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  student Student? @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  smsLogs SmsLog[]
+
+  @@index([userId, status])
+  @@index([status, scheduledAt])
+  @@index([sessionId])
+  @@map("notifications")
+}
+
+model SmsLog {
+  id                String   @id @default(uuid())
+  notificationId    String?
+  to                String
+  body              String
+  provider          String
+  providerMessageId String?
+  success           Boolean
+  error             String?
+  cost              Decimal? @db.Decimal(10, 3)
+  createdAt         DateTime @default(now())
+
+  notification Notification? @relation(fields: [notificationId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@map("sms_logs")
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  actorId   String?
+  action    String
+  entity    String
+  entityId  String?
+  metadata  Json?
+  ip        String?
+  createdAt DateTime @default(now())
+
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([entity, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}

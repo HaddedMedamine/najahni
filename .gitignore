@@ -1,0 +1,10 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.env
+# Session WhatsApp (donne acces au compte : ne jamais partager)
+.whatsapp-session/
+# Fichiers envoyes (exercices...)
+api/uploads/
+api/src/generated/
+coverage/

@@ -1,0 +1,185 @@
+@import 'tailwindcss';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Couleurs du theme : utilisables comme bg-primary, text-muted-foreground, border-border... */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-soft: var(--primary-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  /* Accents pastel (cartes de statistiques, illustrations) */
+  --color-sky: var(--sky);
+  --color-sky-soft: var(--sky-soft);
+  --color-violet: var(--violet);
+  --color-violet-soft: var(--violet-soft);
+  --color-peach: var(--peach);
+  --color-peach-soft: var(--peach-soft);
+  --font-sans: 'Outfit', 'Cairo', ui-sans-serif, system-ui, sans-serif;
+  --shadow-soft: 0 1px 2px rgb(16 36 62 / 0.04), 0 4px 16px -6px rgb(21 101 192 / 0.14);
+}
+
+/* Theme "Sidi Bou Said" : blanc lumineux et bleu profond */
+:root {
+  --background: #f5f9fd;
+  --foreground: #10243e;
+  --card: #ffffff;
+  --muted: #edf3fa;
+  --muted-foreground: #5d6f86;
+  --border: #dfe9f4;
+  --primary: #1565c0;
+  --primary-foreground: #ffffff;
+  --primary-soft: #e3effb;
+  --danger: #d64545;
+  --danger-soft: #fdeceb;
+  --success: #138a63;
+  --success-soft: #e2f5ee;
+  --warning: #c98a04;
+  --warning-soft: #fff4dc;
+  /* Accents secondaires (cartes de statistiques) */
+  --sky: #1e94d2;
+  --sky-soft: #e2f3fc;
+  --violet: #4f5bd5;
+  --violet-soft: #eaecfc;
+  --peach: #e07b39;
+  --peach-soft: #fdefe4;
+}
+
+/* Mode sombre : bleu nuit */
+.dark {
+  --background: #0b1626;
+  --foreground: #e4edf8;
+  --card: #112138;
+  --muted: #182c47;
+  --muted-foreground: #9fb3cc;
+  --border: #213a5a;
+  --primary: #5aa2f0;
+  --primary-foreground: #0b1626;
+  --primary-soft: #15345a;
+  --danger: #f07b7b;
+  --danger-soft: #3a1e24;
+  --success: #45c99a;
+  --success-soft: #133429;
+  --warning: #f2bd4a;
+  --warning-soft: #392c12;
+  --sky: #5cc0f2;
+  --sky-soft: #123248;
+  --violet: #8f99f5;
+  --violet-soft: #232a55;
+  --peach: #f4a06b;
+  --peach-soft: #3a2619;
+}
+
+html {
+  color-scheme: light;
+}
+html.dark {
+  color-scheme: dark;
+}
+
+html[dir='rtl'] body {
+  font-family: 'Cairo', 'Outfit', ui-sans-serif, system-ui, sans-serif;
+}
+
+body {
+  @apply bg-background text-foreground antialiased;
+  /* Halo tres leger en haut de page */
+  background-image: radial-gradient(1200px 400px at 70% -120px, var(--primary-soft), transparent 70%);
+  background-attachment: fixed;
+}
+
+/* ---------- FullCalendar : couleurs du theme (clair et sombre) ---------- */
+.fc {
+  --fc-border-color: var(--border);
+  --fc-page-bg-color: var(--card);
+  --fc-neutral-bg-color: var(--muted);
+  --fc-today-bg-color: color-mix(in srgb, var(--primary) 7%, transparent);
+  --fc-now-indicator-color: var(--danger);
+  --fc-list-event-hover-bg-color: var(--muted);
+  --fc-highlight-color: color-mix(in srgb, var(--primary) 18%, transparent);
+  --fc-button-bg-color: var(--card);
+  --fc-button-border-color: var(--border);
+  --fc-button-text-color: var(--foreground);
+  --fc-button-hover-bg-color: var(--muted);
+  --fc-button-hover-border-color: var(--border);
+  --fc-button-active-bg-color: var(--primary-soft);
+  --fc-button-active-border-color: var(--primary);
+  font-size: 0.85rem;
+}
+.fc .fc-button {
+  border-radius: 0.75rem;
+  padding: 0.35rem 0.75rem;
+  font-weight: 500;
+  text-transform: none;
+  box-shadow: none !important;
+}
+.fc .fc-button-primary:not(:disabled).fc-button-active {
+  color: var(--primary);
+}
+.fc .fc-toolbar-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+.fc .fc-col-header-cell-cushion,
+.fc .fc-list-day-text,
+.fc .fc-list-day-side-text {
+  color: inherit;
+  font-weight: 600;
+}
+.fc .fc-timegrid-slot {
+  height: 2.25rem;
+}
+/* Seance pastel avec liseré de couleur cote debut (s'adapte au RTL) */
+.fc-timegrid-event,
+.fc-daygrid-event {
+  border-width: 0 !important;
+  border-inline-start-width: 3px !important;
+  border-style: solid;
+  border-radius: 0.6rem;
+  box-shadow: 0 1px 2px rgb(30 34 80 / 0.06);
+}
+.fc-event {
+  cursor: pointer;
+}
+.dark .fc-timegrid-event,
+.dark .fc-daygrid-event {
+  filter: brightness(0.88) saturate(1.1);
+}
+.fc .fc-timegrid-col.fc-day-today,
+.fc .fc-daygrid-day.fc-day-today {
+  background: color-mix(in srgb, var(--primary) 5%, transparent);
+}
+.fc .fc-scrollgrid {
+  border-radius: 1rem;
+  overflow: hidden;
+}
+.fc-event.fc-status-done {
+  opacity: 0.7;
+}
+.fc-event.fc-status-in_progress {
+  box-shadow: 0 0 0 2px var(--warning);
+}
+.fc-event.fc-status-cancelled {
+  opacity: 0.6;
+  text-decoration: line-through;
+  background: var(--muted) !important;
+  --fc-event-text-color: var(--muted-foreground);
+  color: var(--muted-foreground);
+}
+.fc-list-event.fc-status-cancelled {
+  background: transparent !important;
+}
+.fc-theme-standard .fc-list-day-cushion {
+  background: var(--muted);
+}
