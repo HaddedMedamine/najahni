@@ -1,5 +1,5 @@
 import { randomInt } from 'node:crypto';
-import { BadRequestException } from '@nestjs/common';
+import { HttpStatus } from '@nestjs/common';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsEmail,
@@ -11,8 +11,15 @@ import {
   MaxLength,
   MinLength,
 } from 'class-validator';
-import type { Role } from '../../generated/prisma/client.js';
+import type { Prisma, Role } from '../../generated/prisma/client.js';
 import { hashPassword } from '../auth/password.js';
+import type { PrismaService } from '../prisma/prisma.service.js';
+import {
+  type FieldErrors,
+  FieldException,
+  fieldError,
+  TAKEN_MESSAGES,
+} from './field-errors.js';
 
 /** Champs communs a la creation de tout compte (eleve, parent, enseignant). */
 export class AccountDto {
@@ -68,7 +75,7 @@ export const generateTemporaryPassword = () =>
  */
 export async function newUserData(input: AccountDto, role: Role) {
   if (!input.email && !input.phone) {
-    throw new BadRequestException('Email ou telephone requis');
+    throw fieldError('phone', 'Email ou telephone requis');
   }
   const temporaryPassword = input.password
     ? undefined
@@ -86,6 +93,34 @@ export async function newUserData(input: AccountDto, role: Role) {
     },
     temporaryPassword,
   };
+}
+
+/**
+ * Verifie d'un coup que l'email et le telephone sont libres,
+ * pour signaler les deux champs ensemble plutot qu'un par un.
+ * `exclude` : le compte modifie (ex. `{ student: { id } }`).
+ */
+export async function assertAccountAvailable(
+  prisma: PrismaService,
+  input: Pick<Partial<AccountDto>, 'email' | 'phone'>,
+  exclude?: Prisma.UserWhereInput,
+) {
+  const email = input.email?.trim().toLowerCase();
+  const phone = input.phone;
+  if (!email && !phone) return;
+  const taken = await prisma.user.findMany({
+    where: {
+      OR: [...(email ? [{ email }] : []), ...(phone ? [{ phone }] : [])],
+      ...(exclude && { NOT: exclude }),
+    },
+    select: { email: true, phone: true },
+  });
+  const errors: FieldErrors = {};
+  if (email && taken.some((u) => u.email === email)) errors.email = TAKEN_MESSAGES.email;
+  if (phone && taken.some((u) => u.phone === phone)) errors.phone = TAKEN_MESSAGES.phone;
+  if (Object.keys(errors).length > 0) {
+    throw new FieldException(errors, HttpStatus.CONFLICT);
+  }
 }
 
 /** Champs utilisateur modifiables (mise a jour partielle). */

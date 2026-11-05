@@ -10,5 +10,8 @@ export const studentRoutes: RouteObject = {
     { index: true, ...lazyPage(() => import('@/actors/student/pages/StudentHomePage'), 'StudentHomePage') },
     { path: 'planning', ...lazyPage(() => import('@/actors/student/pages/StudentPlanningPage'), 'StudentPlanningPage') },
     { path: 'exercises', ...lazyPage(() => import('@/actors/student/pages/StudentExercisesPage'), 'StudentExercisesPage') },
+    { path: 'coding', ...lazyPage(() => import('@/actors/student/pages/CodingPage'), 'CodingPage') },
+    { path: 'coding/:game', ...lazyPage(() => import('@/actors/student/pages/CodingGamePage'), 'CodingGamePage') },
+    { path: 'coding/:game/:id', ...lazyPage(() => import('@/actors/student/pages/CodingLevelPage'), 'CodingLevelPage') },
   ],
 }

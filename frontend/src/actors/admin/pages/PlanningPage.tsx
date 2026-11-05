@@ -4,6 +4,8 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Calendar, sessionEvent } from '@/components/shared/Calendar'
 import { PageHeader } from '@/components/shared/PageHeader'
+import { PlanningPalette } from '@/components/shared/PlanningPalette'
+import { type PendingDrop, RepeatDropDialog } from '@/components/shared/RepeatDropDialog'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Select } from '@/components/ui/input'
@@ -11,7 +13,7 @@ import type { DateRange } from '@/core/api/types'
 import { fullName } from '@/core/lib/utils'
 import { useGroups } from '../api/groups.api'
 import { useRooms } from '../api/rooms.api'
-import { type SessionFilters, useMoveSession, useSessions } from '../api/sessions.api'
+import { type SessionFilters, useCreateSession, useMoveSession, useSessions } from '../api/sessions.api'
 import { useTeachers } from '../api/teachers.api'
 import { SessionDetailDialog } from '../components/SessionDetailDialog'
 import { SessionFormDialog } from '../components/SessionFormDialog'
@@ -23,12 +25,25 @@ export function PlanningPage() {
   const [slot, setSlot] = useState<{ start: Date; end: Date } | null>(null)
   const [formOpen, setFormOpen] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [pendingDrop, setPendingDrop] = useState<PendingDrop | null>(null)
 
   const sessions = useSessions(range, filters)
   const groups = useGroups({ pageSize: 100 })
   const teachers = useTeachers({ pageSize: 100 })
   const rooms = useRooms()
   const move = useMoveSession()
+  const create = useCreateSession()
+
+  // Palette : les groupes de l'enseignant filtre (ou tous), et les salles actives
+  const paletteGroups = (groups.data?.items ?? [])
+    .filter((g) => !filters.teacherId || g.teacherId === filters.teacherId)
+    .filter((g) => !filters.groupId || g.id === filters.groupId)
+    .map((g) => ({
+      id: g.id,
+      name: g.name,
+      subtitle: fullName(g.teacher.user),
+    }))
+  const activeRooms = (rooms.data ?? []).filter((r) => r.isActive)
 
   const events = useMemo(
     () =>
@@ -100,27 +115,86 @@ export function PlanningPage() {
         {t('planning.hint')}
       </p>
 
-      <Card className="p-3 sm:p-4">
-        <Calendar
-          events={events}
-          onRangeChange={setRange}
-          onEventClick={setSelectedId}
-          onSelectSlot={(start, end) => openForm({ start, end })}
-          onEventMove={(id, start, end, revert) =>
-            move.mutate(
-              { id, startsAt: start.toISOString(), endsAt: end.toISOString() },
-              {
-                onSuccess: () => toast.success(t('planning.moved')),
-                // Conflit ou erreur : la seance reprend sa place (le message s'affiche en toast)
-                onError: revert,
-              },
-            )
+      <div className="grid items-start gap-4 lg:grid-cols-[16rem_minmax(0,1fr)]">
+        <PlanningPalette
+          groups={paletteGroups}
+          rooms={activeRooms}
+          header={
+            !filters.teacherId && <p className="text-xs text-muted-foreground">{t('planning.paletteTeacherHint')}</p>
           }
         />
-      </Card>
+        <Card className="min-w-0 p-3 sm:p-4">
+          <Calendar
+            events={events}
+            onRangeChange={setRange}
+            onEventClick={setSelectedId}
+            onSelectSlot={(start, end) => openForm({ start, end })}
+            onEventMove={(id, start, end, revert) =>
+              move.mutate(
+                {
+                  id,
+                  startsAt: start.toISOString(),
+                  endsAt: end.toISOString(),
+                },
+                {
+                  onSuccess: () => toast.success(t('planning.moved')),
+                  // Conflit ou erreur : la seance reprend sa place (le message s'affiche en toast)
+                  onError: revert,
+                },
+              )
+            }
+            onGroupDrop={(groupId, start, end) => {
+              const group = groups.data?.items.find((g) => g.id === groupId)
+              if (group)
+                setPendingDrop({
+                  groupId,
+                  groupName: group.name,
+                  monthlySessions: group.monthlySessions,
+                  start,
+                  end,
+                })
+            }}
+            onRoomDrop={(id, roomId) =>
+              move.mutate(
+                { id, roomId },
+                {
+                  onSuccess: () =>
+                    toast.success(
+                      t('planning.roomBooked', {
+                        room: activeRooms.find((r) => r.id === roomId)?.name,
+                      }),
+                    ),
+                },
+              )
+            }
+          />
+        </Card>
+      </div>
 
       <SessionFormDialog open={formOpen} onOpenChange={setFormOpen} slot={slot} defaultGroupId={filters.groupId} />
       <SessionDetailDialog sessionId={selectedId} onClose={() => setSelectedId(null)} />
+      <RepeatDropDialog
+        drop={pendingDrop}
+        onClose={() => setPendingDrop(null)}
+        loading={create.isPending}
+        onConfirm={(weeks) =>
+          pendingDrop &&
+          create.mutate(
+            {
+              groupId: pendingDrop.groupId,
+              startsAt: pendingDrop.start.toISOString(),
+              endsAt: pendingDrop.end.toISOString(),
+              repeatWeeks: weeks,
+            },
+            {
+              onSuccess: (created) => {
+                toast.success(t('planning.created', { count: created.length }))
+                setPendingDrop(null)
+              },
+            },
+          )
+        }
+      />
     </>
   )
 }

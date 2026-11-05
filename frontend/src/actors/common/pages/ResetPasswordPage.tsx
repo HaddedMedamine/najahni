@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { getErrorMessage, getErrorStatus } from '@/core/api/errors'
 import { useResetPassword } from '@/core/auth/auth.api'
+import { alongWith } from '@/core/lib/validation'
 import i18n from '@/core/i18n'
 
 const makeSchema = () =>
@@ -22,6 +23,7 @@ const makeSchema = () =>
     .refine((v) => v.password === v.confirmPassword, {
       message: i18n.t('validation.passwordsMismatch'),
       path: ['confirmPassword'],
+      ...alongWith('password', 'confirmPassword'),
     })
 type Values = z.infer<ReturnType<typeof makeSchema>>
 
@@ -31,7 +33,7 @@ export function ResetPasswordPage() {
   const [params] = useSearchParams()
   const token = params.get('token') ?? ''
   const schema = useMemo(makeSchema, [language])
-  const form = useForm<Values>({ resolver: zodResolver(schema), defaultValues: { password: '', confirmPassword: '' } })
+  const form = useForm<Values>({ mode: 'onTouched', resolver: zodResolver(schema), defaultValues: { password: '', confirmPassword: '' } })
   const reset = useResetPassword()
   const errors = form.formState.errors
 

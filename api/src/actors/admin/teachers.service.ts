@@ -2,6 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import type { Prisma } from '../../generated/prisma/client.js';
 import { AuditService } from '../../core/audit/audit.service.js';
 import {
+  assertAccountAvailable,
   newUserData,
   publicUserSelect,
   userUpdateData,
@@ -65,6 +66,7 @@ export class TeachersService {
   }
 
   async create(dto: CreateTeacherDto, actorId: string) {
+    await assertAccountAvailable(this.prisma, dto);
     const { user, temporaryPassword } = await newUserData(dto, 'TEACHER');
     const created = await this.prisma.user.create({
       data: { ...user, teacher: { create: { subjects: dto.subjects } } },
@@ -99,6 +101,7 @@ export class TeachersService {
   }
 
   async update(id: string, dto: UpdateTeacherDto, actorId: string) {
+    await assertAccountAvailable(this.prisma, dto, { teacher: { id } });
     if (dto.isActive === false && (await this.isAdminProfile(id))) {
       throw new BadRequestException(
         "Impossible de desactiver le compte administrateur",

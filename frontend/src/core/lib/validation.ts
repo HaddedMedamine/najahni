@@ -31,4 +31,14 @@ export const requiredMoney = () =>
 export const positiveInt = () =>
   z.string().regex(/^[1-9]\d*$/, t('validation.positiveInt'))
 
+/**
+ * Options d'un `refine` sur plusieurs champs : il s'execute meme si d'autres champs
+ * sont invalides (toutes les erreurs s'affichent d'un coup), sauf si un des champs
+ * qu'il compare a deja une erreur.
+ */
+export const alongWith = (...fields: string[]) => ({
+  when: (payload: z.core.ParsePayload) =>
+    !payload.issues.some((issue) => fields.includes(String(issue.path?.[0]))),
+})
+
 export const toNumber = (value: string) => Number(value.replace(',', '.'))

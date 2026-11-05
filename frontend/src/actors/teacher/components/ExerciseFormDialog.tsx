@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input, Select } from '@/components/ui/input'
 import type { Exercise } from '@/core/api/types'
+import { serverErrors } from '@/core/lib/form-errors'
 import { ACCEPTED_FILES, formatSize, isAccepted, MAX_FILES } from '@/core/lib/files'
 import { requiredText } from '@/core/lib/validation'
 import { cn } from '@/core/lib/utils'
@@ -45,7 +46,7 @@ interface Props {
 export function ExerciseFormDialog({ open, onOpenChange, exercise }: Props) {
   const { t, i18n } = useTranslation()
   const schema = useMemo(makeSchema, [i18n.language])
-  const form = useForm<Values>({ resolver: zodResolver(schema) })
+  const form = useForm<Values>({ mode: 'onTouched', resolver: zodResolver(schema) })
   const groups = useMyGroups()
   const create = useCreateExercise()
   const update = useUpdateExercise()
@@ -109,12 +110,12 @@ export function ExerciseFormDialog({ open, onOpenChange, exercise }: Props) {
       onOpenChange(false)
     }
     if (exercise) {
-      update.mutate({ id: exercise.id, title: v.title, description: v.description, groupIds }, { onSuccess })
+      update.mutate({ id: exercise.id, title: v.title, description: v.description, groupIds }, { onSuccess, onError: serverErrors(form) })
     } else {
       setProgress(0)
       create.mutate(
         { ...v, groupIds, files, onProgress: setProgress },
-        { onSuccess, onSettled: () => setProgress(null) },
+        { onSuccess, onError: serverErrors(form), onSettled: () => setProgress(null) },
       )
     }
   }

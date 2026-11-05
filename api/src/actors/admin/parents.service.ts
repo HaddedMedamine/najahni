@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import type { Prisma } from '../../generated/prisma/client.js';
 import { AuditService } from '../../core/audit/audit.service.js';
 import {
+  assertAccountAvailable,
   newUserData,
   publicUserSelect,
   userUpdateData,
@@ -68,6 +69,7 @@ export class ParentsService {
   }
 
   async create(dto: CreateParentDto, actorId: string) {
+    await assertAccountAvailable(this.prisma, dto);
     const { user, temporaryPassword } = await newUserData(dto, 'PARENT');
     const created = await this.prisma.user.create({
       data: {
@@ -93,6 +95,7 @@ export class ParentsService {
   }
 
   async update(id: string, dto: UpdateParentDto, actorId: string) {
+    await assertAccountAvailable(this.prisma, dto, { parent: { id } });
     const parent = await this.prisma.parent.update({
       where: { id },
       data: {

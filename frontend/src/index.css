@@ -183,3 +183,238 @@ body {
 .fc-theme-standard .fc-list-day-cushion {
   background: var(--muted);
 }
+/* Creneau deja reserve dans une salle (fond hachure, non cliquable) */
+.fc .fc-bg-event.fc-reserved {
+  opacity: 1;
+  cursor: default;
+  background: repeating-linear-gradient(
+    -45deg,
+    color-mix(in srgb, var(--muted-foreground) 12%, transparent) 0 6px,
+    transparent 6px 12px
+  );
+}
+/* Element de la palette en cours de glissement */
+.fc-palette-item {
+  cursor: grab;
+  touch-action: none;
+}
+/* Cadenas qui refuse (Coder) */
+@keyframes coder-shake {
+  0%, 100% { translate: 0 0; }
+  25% { translate: -3px 0; }
+  75% { translate: 3px 0; }
+}
+
+/* ============================================================
+   Jeux Coder : scene plein ecran, toujours sombre
+   Les composants (Card, Button, Input...) y prennent ces couleurs
+   ============================================================ */
+.game-stage {
+  --foreground: #f1f4ff;
+  --muted-foreground: #aab6d6;
+  --danger: #ff7b7b;
+  --danger-soft: #4a1f2c;
+  --success: #57e0a6;
+  --success-soft: #123c33;
+  --warning: #ffc857;
+  --warning-soft: #453413;
+  --primary-foreground: #1b1405;
+  color: var(--foreground);
+  background: var(--background);
+}
+.game-stage[data-theme='garden'] {
+  --background: #0c1f2b;
+  --card: #14303d;
+  --muted: #1c3f4e;
+  --border: #2c5766;
+  --primary: #ffc857;
+  --primary-soft: #39402a;
+  --game-glow: #57e0a6;
+}
+.game-stage[data-theme='temple'] {
+  --background: #150f26;
+  --card: #221a3a;
+  --muted: #30264f;
+  --border: #4a3b72;
+  --primary: #ffb347;
+  --primary-soft: #453217;
+  --game-glow: #b48cff;
+}
+/* Ciel de la scene */
+.game-sky {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.game-stage[data-theme='garden'] .game-sky {
+  background:
+    radial-gradient(60rem 26rem at 85% -8%, rgb(87 224 166 / 0.2), transparent 70%),
+    radial-gradient(44rem 22rem at 5% 105%, rgb(255 200 87 / 0.1), transparent 70%);
+}
+.game-stage[data-theme='temple'] .game-sky {
+  background:
+    radial-gradient(60rem 26rem at 15% -8%, rgb(180 140 255 / 0.24), transparent 70%),
+    radial-gradient(44rem 22rem at 95% 105%, rgb(255 179 71 / 0.12), transparent 70%);
+}
+.game-spark {
+  position: absolute;
+  border-radius: 9999px;
+  background: var(--game-glow);
+  box-shadow: 0 0 10px 2px var(--game-glow);
+  animation: game-float var(--spark-time, 9s) ease-in-out infinite;
+  animation-delay: var(--spark-delay, 0s);
+}
+.game-panel {
+  background: color-mix(in srgb, var(--card) 88%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 1.25rem;
+  backdrop-filter: blur(6px);
+}
+.game-title {
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  text-shadow: 0 2px 18px color-mix(in srgb, var(--game-glow) 45%, transparent);
+}
+.game-cta {
+  box-shadow:
+    0 5px 0 color-mix(in srgb, var(--primary) 55%, black),
+    0 12px 26px -8px color-mix(in srgb, var(--primary) 70%, transparent);
+  transition:
+    transform 0.08s,
+    box-shadow 0.08s;
+}
+.game-cta:hover {
+  transform: translateY(-1px);
+}
+.game-cta:active {
+  transform: translateY(4px);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--primary) 55%, black);
+}
+.game-node {
+  transition: transform 0.15s;
+}
+.game-node:hover {
+  transform: translateY(-3px) scale(1.05);
+}
+.game-pulse {
+  animation: game-pulse 1.8s ease-out infinite;
+}
+.game-pop {
+  animation: game-pop 0.45s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+}
+.game-rise {
+  animation: game-rise 0.5s ease-out both;
+}
+.game-bob {
+  animation: game-bob 2.2s ease-in-out infinite;
+}
+.game-walk {
+  animation: game-bob 0.28s ease-in-out infinite;
+}
+.game-sway {
+  animation: game-sway 3.4s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center bottom;
+}
+.game-flame {
+  animation: game-flame 0.9s ease-in-out infinite alternate;
+  transform-box: fill-box;
+  transform-origin: center bottom;
+}
+.game-floatup {
+  animation: game-floatup 0.9s ease-out both;
+}
+.game-confetti {
+  position: absolute;
+  top: -5%;
+  width: 0.6rem;
+  height: 1rem;
+  border-radius: 2px;
+  animation: game-confetti var(--fall, 2.6s) linear var(--delay, 0s) both;
+}
+@keyframes game-float {
+  0%,
+  100% {
+    transform: translate(0, 0);
+    opacity: 0.15;
+  }
+  50% {
+    transform: translate(14px, -34px);
+    opacity: 0.85;
+  }
+}
+@keyframes game-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--primary) 65%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 18px transparent;
+  }
+}
+@keyframes game-pop {
+  from {
+    transform: scale(0.2) rotate(-14deg);
+    opacity: 0;
+  }
+}
+@keyframes game-rise {
+  from {
+    transform: translateY(16px);
+    opacity: 0;
+  }
+}
+@keyframes game-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+@keyframes game-sway {
+  0%,
+  100% {
+    transform: rotate(-2.5deg);
+  }
+  50% {
+    transform: rotate(2.5deg);
+  }
+}
+@keyframes game-flame {
+  from {
+    transform: scale(1, 1);
+    opacity: 0.85;
+  }
+  to {
+    transform: scale(0.86, 1.14);
+    opacity: 1;
+  }
+}
+@keyframes game-floatup {
+  from {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(-26px);
+    opacity: 0;
+  }
+}
+@keyframes game-confetti {
+  to {
+    transform: translateY(112vh) rotate(720deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .game-spark,
+  .game-pulse,
+  .game-bob,
+  .game-walk,
+  .game-sway,
+  .game-flame,
+  .game-confetti {
+    animation: none;
+  }
+}

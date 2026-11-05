@@ -3,11 +3,16 @@ import { Type } from 'class-transformer';
 import {
   ArrayNotEmpty,
   IsArray,
+  IsDateString,
   IsIn,
+  IsInt,
   IsOptional,
   IsString,
   IsUUID,
+  Max,
   MaxLength,
+  Min,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 
@@ -51,4 +56,53 @@ export class SessionNotesDto {
   @IsString()
   @MaxLength(5000)
   homework?: string;
+}
+
+/** Seance posee sur le planning (glisser un groupe sur un creneau). */
+export class CreateTeacherSessionDto {
+  @ApiProperty()
+  @IsUUID()
+  groupId: string;
+
+  @ApiProperty({ example: '2026-10-21T17:00:00.000Z' })
+  @IsDateString()
+  startsAt: string;
+
+  @ApiProperty({ example: '2026-10-21T18:30:00.000Z' })
+  @IsDateString()
+  endsAt: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  roomId?: string;
+
+  @ApiPropertyOptional({
+    default: 1,
+    description: 'Nombre de semaines (1 = seance unique)',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(40)
+  repeatWeeks?: number;
+}
+
+/** Deplacement, duree ou salle d'une de mes seances planifiees. */
+export class UpdateTeacherSessionDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  startsAt?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  endsAt?: string;
+
+  @ApiPropertyOptional({ nullable: true, description: 'null = sans salle' })
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsUUID()
+  roomId?: string | null;
 }

@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react'
+import { AlertCircle } from 'lucide-react'
+import { cloneElement, isValidElement, type ReactElement, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/core/lib/utils'
 
@@ -12,7 +13,7 @@ interface Props {
   children: ReactNode
 }
 
-/** Libelle + champ + message d'erreur. */
+/** Libelle + champ + message d'erreur (le champ est marque invalide automatiquement). */
 export function FormField({
   label,
   htmlFor,
@@ -23,6 +24,15 @@ export function FormField({
   children,
 }: Props) {
   const { t } = useTranslation()
+  const messageId = htmlFor && `${htmlFor}-message`
+  const field =
+    error && isValidElement(children)
+      ? cloneElement(children as ReactElement<Record<string, unknown>>, {
+          'aria-invalid': true,
+          'aria-describedby': messageId,
+        })
+      : children
+
   return (
     <div className={cn('flex flex-col gap-1.5', className)}>
       <label htmlFor={htmlFor} className="text-sm font-medium">
@@ -33,11 +43,18 @@ export function FormField({
           </span>
         )}
       </label>
-      {children}
+      {field}
       {error ? (
-        <p className="text-xs text-danger">{error}</p>
+        <p id={messageId} role="alert" className="flex items-start gap-1 text-xs text-danger">
+          <AlertCircle className="mt-px size-3.5 shrink-0" />
+          {error}
+        </p>
       ) : (
-        hint && <p className="text-xs text-muted-foreground">{hint}</p>
+        hint && (
+          <p id={messageId} className="text-xs text-muted-foreground">
+            {hint}
+          </p>
+        )
       )}
     </div>
   )

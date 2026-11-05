@@ -2,6 +2,7 @@ import { ConflictException, Injectable } from '@nestjs/common';
 import type { Prisma } from '../../generated/prisma/client.js';
 import { AuditService } from '../../core/audit/audit.service.js';
 import {
+  assertAccountAvailable,
   newUserData,
   publicUserSelect,
   userUpdateData,
@@ -80,6 +81,7 @@ export class StudentsService {
   }
 
   async create(dto: CreateStudentDto, actorId: string) {
+    await assertAccountAvailable(this.prisma, dto);
     const { user, temporaryPassword } = await newUserData(dto, 'STUDENT');
 
     const studentId = await this.prisma.$transaction(async (tx) => {
@@ -118,6 +120,7 @@ export class StudentsService {
   }
 
   async update(id: string, dto: UpdateStudentDto, actorId: string) {
+    await assertAccountAvailable(this.prisma, dto, { student: { id } });
     await this.prisma.student.update({
       where: { id },
       data: {

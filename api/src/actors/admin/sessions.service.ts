@@ -6,17 +6,20 @@ import { PrismaService } from '../../core/prisma/prisma.service.js';
 import {
   assertNoConflicts,
   findConflicts,
-  type Slot,
 } from '../../core/sessions/conflicts.js';
-import { addDays, overlapping, parseRange } from '../../core/sessions/range.js';
+import {
+  assertRoomFits,
+  assertValidSlot,
+  weeklySlots,
+  withActiveStudents,
+} from '../../core/sessions/planning.js';
+import { overlapping, parseRange } from '../../core/sessions/range.js';
 import {
   CreateSessionDto,
   DeleteSessionQuery,
   ListSessionsQuery,
   UpdateSessionDto,
 } from './dto/sessions.dto.js';
-
-const MAX_DURATION_MS = 6 * 60 * 60 * 1000;
 
 const personName = { select: { firstName: true, lastName: true } } as const;
 
@@ -75,21 +78,16 @@ export class SessionsService {
 
     const group = await this.prisma.group.findUniqueOrThrow({
       where: { id: dto.groupId },
-      include: {
-        _count: { select: { students: { where: { leftAt: null } } } },
-      },
+      include: withActiveStudents,
     });
     if (group.archivedAt)
       throw new BadRequestException('Ce groupe est archive');
 
     const teacherId = dto.teacherId ?? group.teacherId;
-    await this.assertRoomFits(dto.roomId, group._count.students);
+    await assertRoomFits(this.prisma, dto.roomId, group._count.students);
 
     const weeks = dto.repeatWeeks ?? 1;
-    const slots: Slot[] = Array.from({ length: weeks }, (_, i) => ({
-      startsAt: addDays(startsAt, 7 * i),
-      endsAt: addDays(endsAt, 7 * i),
-    }));
+    const slots = weeklySlots(startsAt, endsAt, weeks);
     const seriesId = weeks > 1 ? randomUUID() : null;
 
     const created = await this.prisma.$transaction(async (tx) => {
@@ -132,13 +130,7 @@ export class SessionsService {
   async update(id: string, dto: UpdateSessionDto, actorId: string) {
     const session = await this.prisma.session.findUniqueOrThrow({
       where: { id },
-      include: {
-        group: {
-          include: {
-            _count: { select: { students: { where: { leftAt: null } } } },
-          },
-        },
-      },
+      include: { group: { include: withActiveStudents } },
     });
     if (session.status !== 'PLANNED') {
       throw new BadRequestException(
@@ -153,7 +145,11 @@ export class SessionsService {
     const roomId = dto.roomId === undefined ? session.roomId : dto.roomId;
     const teacherId = dto.teacherId ?? session.teacherId;
     if (dto.roomId)
-      await this.assertRoomFits(dto.roomId, session.group._count.students);
+      await assertRoomFits(
+        this.prisma,
+        dto.roomId,
+        session.group._count.students,
+      );
 
     const updated = await this.prisma.$transaction(async (tx) => {
       assertNoConflicts(
@@ -235,33 +231,5 @@ export class SessionsService {
       metadata: { scope: q.scope ?? 'one', count },
     });
     return { deleted: count };
-  }
-
-  private async assertRoomFits(
-    roomId: string | undefined | null,
-    students: number,
-  ) {
-    if (!roomId) return;
-    const room = await this.prisma.room.findUniqueOrThrow({
-      where: { id: roomId },
-    });
-    if (!room.isActive)
-      throw new BadRequestException(`La salle "${room.name}" est desactivee`);
-    if (room.capacity < students) {
-      throw new BadRequestException(
-        `La salle "${room.name}" (${room.capacity} places) est trop petite pour ce groupe (${students} eleves)`,
-      );
-    }
-  }
-}
-
-function assertValidSlot(startsAt: Date, endsAt: Date) {
-  if (endsAt <= startsAt) {
-    throw new BadRequestException(
-      "L'heure de fin doit suivre l'heure de debut",
-    );
-  }
-  if (endsAt.getTime() - startsAt.getTime() > MAX_DURATION_MS) {
-    throw new BadRequestException('Une seance ne peut pas depasser 6 heures');
   }
 }

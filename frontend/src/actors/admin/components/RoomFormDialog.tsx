@@ -15,6 +15,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { serverErrors } from '@/core/lib/form-errors'
 import { positiveInt, requiredText } from '@/core/lib/validation'
 import { type Room, useCreateRoom, useUpdateRoom } from '../api/rooms.api'
 
@@ -30,7 +31,7 @@ interface Props {
 export function RoomFormDialog({ open, onOpenChange, room }: Props) {
   const { t, i18n } = useTranslation()
   const schema = useMemo(makeSchema, [i18n.language])
-  const form = useForm<Values>({ resolver: zodResolver(schema) })
+  const form = useForm<Values>({ mode: 'onTouched', resolver: zodResolver(schema) })
   const create = useCreateRoom()
   const update = useUpdateRoom()
 
@@ -44,8 +45,8 @@ export function RoomFormDialog({ open, onOpenChange, room }: Props) {
       toast.success(t('common.saved'))
       onOpenChange(false)
     }
-    if (room) update.mutate({ id: room.id, ...input }, { onSuccess })
-    else create.mutate(input, { onSuccess })
+    if (room) update.mutate({ id: room.id, ...input }, { onSuccess, onError: serverErrors(form) })
+    else create.mutate(input, { onSuccess, onError: serverErrors(form) })
   }
 
   const errors = form.formState.errors

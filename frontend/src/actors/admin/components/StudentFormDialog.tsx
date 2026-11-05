@@ -16,6 +16,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { serverErrors } from '@/core/lib/form-errors'
 import { cn } from '@/core/lib/utils'
 import { optionalMoney, optionalPhone, requiredText, toNumber } from '@/core/lib/validation'
 import { useGroups } from '../api/groups.api'
@@ -70,7 +71,7 @@ export function StudentFormDialog({ open, onOpenChange, student, onCreated }: Pr
   const { t, i18n } = useTranslation()
   const isEdit = Boolean(student)
   const schema = useMemo(makeSchema, [i18n.language])
-  const form = useForm<Values>({ resolver: zodResolver(schema), defaultValues: defaults() })
+  const form = useForm<Values>({ mode: 'onTouched', resolver: zodResolver(schema), defaultValues: defaults() })
   const create = useCreateStudent()
   const update = useUpdateStudent()
   const groups = useGroups({ pageSize: 100 })
@@ -92,6 +93,7 @@ export function StudentFormDialog({ open, onOpenChange, student, onCreated }: Pr
       update.mutate(
         { id: student.id, ...account, ...fields },
         {
+          onError: serverErrors(form),
           onSuccess: () => {
             toast.success(t('common.saved'))
             onOpenChange(false)
@@ -102,6 +104,7 @@ export function StudentFormDialog({ open, onOpenChange, student, onCreated }: Pr
       create.mutate(
         { ...toAccountInput(v), ...fields, groupIds: v.groupIds },
         {
+          onError: serverErrors(form),
           onSuccess: (created) => {
             toast.success(t('students.created'))
             onOpenChange(false)

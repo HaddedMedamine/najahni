@@ -14,8 +14,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { logout, useChangePassword } from '@/core/auth/auth.api'
 import { useAuthStore } from '@/core/auth/auth.store'
+import { serverErrors } from '@/core/lib/form-errors'
 import { fullName } from '@/core/lib/utils'
-import { requiredText } from '@/core/lib/validation'
+import { alongWith, requiredText } from '@/core/lib/validation'
 import i18n from '@/core/i18n'
 
 const makeSchema = () =>
@@ -28,6 +29,7 @@ const makeSchema = () =>
     .refine((v) => v.newPassword === v.confirmPassword, {
       message: i18n.t('validation.passwordsMismatch'),
       path: ['confirmPassword'],
+      ...alongWith('newPassword', 'confirmPassword'),
     })
 
 type Values = z.infer<ReturnType<typeof makeSchema>>
@@ -38,6 +40,7 @@ export function ProfilePage() {
   const user = useAuthStore((s) => s.user)
   const schema = useMemo(makeSchema, [i18n.language])
   const form = useForm<Values>({
+    mode: 'onTouched',
     resolver: zodResolver(schema),
     defaultValues: { currentPassword: '', newPassword: '', confirmPassword: '' },
   })
@@ -51,6 +54,7 @@ export function ProfilePage() {
     changePassword.mutate(
       { currentPassword: v.currentPassword, newPassword: v.newPassword },
       {
+        onError: serverErrors(form),
         onSuccess: async () => {
           toast.success(t('profile.passwordChanged'))
           await logout()

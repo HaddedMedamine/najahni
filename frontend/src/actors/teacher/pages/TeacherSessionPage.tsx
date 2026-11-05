@@ -1,7 +1,7 @@
-import { ArrowLeft, CheckCheck, CircleCheckBig, DoorOpen, Play, Save, Video } from 'lucide-react'
+import { ArrowLeft, CheckCheck, CircleCheckBig, DoorOpen, Play, Save, Trash2, Video } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { Avatar } from '@/components/shared/Misc'
@@ -14,6 +14,7 @@ import { formatSessionSlot } from '@/core/lib/format'
 import { cn, fullName } from '@/core/lib/utils'
 import {
   useCompleteSession,
+  useDeleteTeacherSession,
   useMarkAttendance,
   useSaveNotes,
   useStartSession,
@@ -26,16 +27,19 @@ const textareaClass =
 export function TeacherSessionPage() {
   const { id = '' } = useParams()
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const { data: session, isLoading, isError, refetch } = useTeacherSession(id)
   const start = useStartSession(id)
   const mark = useMarkAttendance(id)
   const saveNotes = useSaveNotes(id)
   const complete = useCompleteSession(id)
+  const remove = useDeleteTeacherSession()
 
   // Appel en cours de saisie : true = present (par defaut tout le monde est absent)
   const [present, setPresent] = useState<Record<string, boolean>>({})
   const [notes, setNotes] = useState({ contentCovered: '', homework: '' })
   const [confirmComplete, setConfirmComplete] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   // On ne resynchronise avec le serveur que si SES donnees changent :
   // enregistrer les notes ne doit pas effacer un appel en cours de saisie (et inversement)
@@ -160,6 +164,10 @@ export function TeacherSessionPage() {
               {t('session.start')}
             </Button>
             <span className="text-xs text-muted-foreground">{t('session.startHint')}</span>
+            <Button variant="ghost" size="sm" className="text-danger" onClick={() => setConfirmDelete(true)}>
+              <Trash2 />
+              {t('planning.deleteSession')}
+            </Button>
           </div>
         )}
         {session.status === 'IN_PROGRESS' && (
@@ -291,6 +299,23 @@ export function TeacherSessionPage() {
         confirmLabel={t('session.complete')}
         loading={complete.isPending || mark.isPending}
         onConfirm={finish}
+      />
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title={t('planning.deleteSession')}
+        description={t('planning.deleteSessionConfirm')}
+        confirmLabel={t('planning.deleteSession')}
+        destructive
+        loading={remove.isPending}
+        onConfirm={() =>
+          remove.mutate(id, {
+            onSuccess: () => {
+              toast.success(t('planning.sessionDeleted'))
+              navigate('/teacher', { replace: true })
+            },
+          })
+        }
       />
     </>
   )

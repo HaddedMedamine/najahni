@@ -15,6 +15,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { serverErrors } from '@/core/lib/form-errors'
 import { requiredText } from '@/core/lib/validation'
 import {
   type TeacherListItem,
@@ -51,7 +52,7 @@ export function TeacherFormDialog({ open, onOpenChange, teacher, onCreated }: Pr
   const { t, i18n } = useTranslation()
   const isEdit = Boolean(teacher)
   const schema = useMemo(makeSchema, [i18n.language])
-  const form = useForm<Values>({ resolver: zodResolver(schema) })
+  const form = useForm<Values>({ mode: 'onTouched', resolver: zodResolver(schema) })
   const create = useCreateTeacher()
   const update = useUpdateTeacher()
 
@@ -71,6 +72,7 @@ export function TeacherFormDialog({ open, onOpenChange, teacher, onCreated }: Pr
       update.mutate(
         { id: teacher.id, ...account, subjects },
         {
+          onError: serverErrors(form),
           onSuccess: () => {
             toast.success(t('common.saved'))
             onOpenChange(false)
@@ -81,6 +83,7 @@ export function TeacherFormDialog({ open, onOpenChange, teacher, onCreated }: Pr
       create.mutate(
         { ...toAccountInput(v), subjects },
         {
+          onError: serverErrors(form),
           onSuccess: (created) => {
             toast.success(t('teachers.created'))
             onOpenChange(false)

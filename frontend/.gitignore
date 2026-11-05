@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Moteur Python (copie depuis node_modules par scripts/fetch-pyodide.mjs)
+public/pyodide

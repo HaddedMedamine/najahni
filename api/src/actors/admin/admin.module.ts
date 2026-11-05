@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AdminAccountsController } from '../../routes/admin/accounts.routes.js';
+import { AdminCodingController } from '../../routes/admin/coding.routes.js';
 import { AdminGroupsController } from '../../routes/admin/groups.routes.js';
 import { AdminParentsController } from '../../routes/admin/parents.routes.js';
 import { AdminPaymentsController } from '../../routes/admin/payments.routes.js';
@@ -29,6 +30,7 @@ import { AdminWhatsappService } from './whatsapp.service.js';
     AdminSessionsController,
     AdminPaymentsController,
     AdminWhatsappController,
+    AdminCodingController,
   ],
   providers: [
     StudentsService,

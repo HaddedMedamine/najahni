@@ -15,6 +15,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input, Select } from '@/components/ui/input'
+import { serverErrors } from '@/core/lib/form-errors'
 import { fullName } from '@/core/lib/utils'
 import { positiveInt, requiredMoney, requiredText, toNumber } from '@/core/lib/validation'
 import { type Group, useCreateGroup, useUpdateGroup } from '../api/groups.api'
@@ -56,7 +57,7 @@ export function GroupFormDialog({ open, onOpenChange, group }: Props) {
   const { t, i18n } = useTranslation()
   const isEdit = Boolean(group)
   const schema = useMemo(makeSchema, [i18n.language])
-  const form = useForm<Values>({ resolver: zodResolver(schema), defaultValues: defaults() })
+  const form = useForm<Values>({ mode: 'onTouched', resolver: zodResolver(schema), defaultValues: defaults() })
   const create = useCreateGroup()
   const update = useUpdateGroup()
   const teachers = useTeachers({ pageSize: 100 })
@@ -76,8 +77,8 @@ export function GroupFormDialog({ open, onOpenChange, group }: Props) {
       toast.success(isEdit ? t('common.saved') : t('groups.created'))
       onOpenChange(false)
     }
-    if (group) update.mutate({ id: group.id, ...input }, { onSuccess })
-    else create.mutate(input, { onSuccess })
+    if (group) update.mutate({ id: group.id, ...input }, { onSuccess, onError: serverErrors(form) })
+    else create.mutate(input, { onSuccess, onError: serverErrors(form) })
   }
 
   const errors = form.formState.errors

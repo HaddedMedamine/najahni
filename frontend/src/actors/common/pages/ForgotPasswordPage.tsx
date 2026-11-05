@@ -20,7 +20,7 @@ type Values = z.infer<ReturnType<typeof makeSchema>>
 export function ForgotPasswordPage() {
   const { t, i18n } = useTranslation()
   const schema = useMemo(makeSchema, [i18n.language])
-  const form = useForm<Values>({ resolver: zodResolver(schema), defaultValues: { identifier: '' } })
+  const form = useForm<Values>({ mode: 'onTouched', resolver: zodResolver(schema), defaultValues: { identifier: '' } })
   const forgot = useForgotPassword()
   const errors = form.formState.errors
 

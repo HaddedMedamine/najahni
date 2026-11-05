@@ -1,24 +1,47 @@
+import { randomUUID } from 'node:crypto';
 import {
   BadRequestException,
   Injectable,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import type { Prisma } from '../../generated/prisma/client.js';
 import { AuditService } from '../../core/audit/audit.service.js';
 import { NotificationsService } from '../../core/notifications/notifications.service.js';
 import { PrismaService } from '../../core/prisma/prisma.service.js';
 import { seriesCompletedBySession } from '../../core/payments/payments.js';
 import {
+  assertNoConflicts,
+  findConflicts,
+} from '../../core/sessions/conflicts.js';
+import {
+  assertRoomFits,
+  assertValidSlot,
+  weeklySlots,
+  withActiveStudents,
+} from '../../core/sessions/planning.js';
+import {
   DateRangeQuery,
   overlapping,
   parseRange,
 } from '../../core/sessions/range.js';
-import { MarkAttendanceDto, SessionNotesDto } from './dto/sessions.dto.js';
+import {
+  CreateTeacherSessionDto,
+  MarkAttendanceDto,
+  SessionNotesDto,
+  UpdateTeacherSessionDto,
+} from './dto/sessions.dto.js';
 
 /** On peut ouvrir l'appel 30 minutes avant le debut prevu. */
 const START_EARLY_MS = 30 * 60 * 1000;
 
 const personName = { select: { firstName: true, lastName: true } } as const;
+
+const sessionListInclude = {
+  group: { select: { id: true, name: true, subject: true } },
+  room: { select: { id: true, name: true } },
+  _count: { select: { attendances: true } },
+} satisfies Prisma.SessionInclude;
 
 @Injectable()
 export class TeacherSessionsService {
@@ -35,12 +58,148 @@ export class TeacherSessionsService {
     const teacher = await this.teacherOf(userId);
     return this.prisma.session.findMany({
       where: { teacherId: teacher.id, ...overlapping(from, to) },
-      include: {
-        group: { select: { id: true, name: true, subject: true } },
+      include: sessionListInclude,
+      orderBy: { startsAt: 'asc' },
+    });
+  }
+
+  /** Salles actives, pour reserver une salle a mes seances. */
+  rooms() {
+    return this.prisma.room.findMany({
+      where: { isActive: true },
+      select: { id: true, name: true, capacity: true },
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  /** Reservations des salles sur la periode (sans le detail des seances des autres). */
+  async roomOccupancy(userId: string, q: DateRangeQuery) {
+    const { from, to } = parseRange(q);
+    const teacher = await this.teacherOf(userId);
+    const sessions = await this.prisma.session.findMany({
+      where: {
+        ...overlapping(from, to),
+        roomId: { not: null },
+        status: { not: 'CANCELLED' },
+      },
+      select: {
+        id: true,
+        startsAt: true,
+        endsAt: true,
+        teacherId: true,
         room: { select: { id: true, name: true } },
-        _count: { select: { attendances: true } },
       },
       orderBy: { startsAt: 'asc' },
+    });
+    return sessions.map(({ teacherId, ...s }) => ({
+      ...s,
+      mine: teacherId === teacher.id,
+    }));
+  }
+
+  /** Pose une seance d'un de mes groupes sur le planning, ou une serie hebdomadaire. */
+  async create(userId: string, dto: CreateTeacherSessionDto) {
+    const teacher = await this.teacherOf(userId);
+    const group = await this.prisma.group.findFirst({
+      where: { id: dto.groupId, teacherId: teacher.id, archivedAt: null },
+      include: withActiveStudents,
+    });
+    if (!group) throw new NotFoundException('Groupe introuvable');
+
+    const startsAt = new Date(dto.startsAt);
+    const endsAt = new Date(dto.endsAt);
+    assertValidSlot(startsAt, endsAt);
+    await assertRoomFits(this.prisma, dto.roomId, group._count.students);
+
+    const weeks = dto.repeatWeeks ?? 1;
+    const slots = weeklySlots(startsAt, endsAt, weeks);
+    const seriesId = weeks > 1 ? randomUUID() : null;
+
+    const created = await this.prisma.$transaction(async (tx) => {
+      assertNoConflicts(
+        await findConflicts(tx, slots, {
+          teacherId: teacher.id,
+          groupId: group.id,
+          roomId: dto.roomId,
+        }),
+      );
+      await tx.session.createMany({
+        data: slots.map((slot) => ({
+          ...slot,
+          groupId: group.id,
+          teacherId: teacher.id,
+          roomId: dto.roomId,
+          seriesId,
+        })),
+      });
+      return tx.session.findMany({
+        where: seriesId ? { seriesId } : { groupId: group.id, startsAt },
+        include: sessionListInclude,
+        orderBy: { startsAt: 'asc' },
+      });
+    });
+
+    await this.audit.log({
+      actorId: userId,
+      action: 'session.create',
+      entity: 'Group',
+      entityId: group.id,
+      metadata: { count: created.length, seriesId, startsAt: dto.startsAt },
+    });
+    return created;
+  }
+
+  /** Deplace, redimensionne ou change la salle d'une de mes seances planifiees. */
+  async update(userId: string, id: string, dto: UpdateTeacherSessionDto) {
+    const session = await this.ownPlannedSession(userId, id);
+    const startsAt = dto.startsAt ? new Date(dto.startsAt) : session.startsAt;
+    const endsAt = dto.endsAt ? new Date(dto.endsAt) : session.endsAt;
+    assertValidSlot(startsAt, endsAt);
+
+    const roomId = dto.roomId === undefined ? session.roomId : dto.roomId;
+    if (dto.roomId) {
+      const group = await this.prisma.group.findUniqueOrThrow({
+        where: { id: session.groupId },
+        include: withActiveStudents,
+      });
+      await assertRoomFits(this.prisma, dto.roomId, group._count.students);
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      assertNoConflicts(
+        await findConflicts(tx, [{ startsAt, endsAt }], {
+          teacherId: session.teacherId,
+          groupId: session.groupId,
+          roomId,
+          excludeId: id,
+        }),
+      );
+      return tx.session.update({
+        where: { id },
+        data: { startsAt, endsAt, roomId },
+        include: sessionListInclude,
+      });
+    });
+
+    await this.audit.log({
+      actorId: userId,
+      action: 'session.update',
+      entity: 'Session',
+      entityId: id,
+      metadata: { ...dto },
+    });
+    return updated;
+  }
+
+  /** Retire une de mes seances planifiees (posee par erreur, par exemple). */
+  async remove(userId: string, id: string) {
+    await this.ownPlannedSession(userId, id);
+    await this.prisma.session.delete({ where: { id } });
+    await this.audit.log({
+      actorId: userId,
+      action: 'session.delete',
+      entity: 'Session',
+      entityId: id,
     });
   }
 
@@ -234,6 +393,16 @@ export class TeacherSessionsService {
       },
     });
     if (!session) throw new NotFoundException('Seance introuvable');
+    return session;
+  }
+
+  private async ownPlannedSession(userId: string, id: string) {
+    const session = await this.ownSession(userId, id);
+    if (session.status !== 'PLANNED') {
+      throw new BadRequestException(
+        'Seule une seance planifiee peut etre modifiee',
+      );
+    }
     return session;
   }
 

@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { z } from 'zod'
+import { SESSION_MINUTES } from '@/components/shared/Calendar'
 import { FormField } from '@/components/shared/FormField'
 import { Button } from '@/components/ui/button'
 import {
@@ -15,8 +16,9 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input, Select } from '@/components/ui/input'
+import { serverErrors } from '@/core/lib/form-errors'
 import { fullName } from '@/core/lib/utils'
-import { positiveInt, requiredText } from '@/core/lib/validation'
+import { alongWith, positiveInt, requiredText } from '@/core/lib/validation'
 import i18n from '@/core/i18n'
 import { useGroups } from '../api/groups.api'
 import { useRooms } from '../api/rooms.api'
@@ -38,7 +40,11 @@ const makeSchema = () =>
       isOnline: z.boolean(),
       meetingUrl: z.union([z.literal(''), z.url(i18n.t('validation.url'))]),
     })
-    .refine((v) => v.end > v.start, { message: i18n.t('validation.endAfterStart'), path: ['end'] })
+    .refine((v) => v.end > v.start, {
+      message: i18n.t('validation.endAfterStart'),
+      path: ['end'],
+      ...alongWith('start', 'end'),
+    })
 
 type Values = z.infer<ReturnType<typeof makeSchema>>
 
@@ -59,7 +65,7 @@ interface Props {
 export function SessionFormDialog({ open, onOpenChange, slot, defaultGroupId }: Props) {
   const { t } = useTranslation()
   const schema = useMemo(makeSchema, [i18n.language])
-  const form = useForm<Values>({ resolver: zodResolver(schema) })
+  const form = useForm<Values>({ mode: 'onTouched', resolver: zodResolver(schema) })
   const create = useCreateSession()
   const groups = useGroups({ pageSize: 100 })
   const teachers = useTeachers({ pageSize: 100 })
@@ -68,7 +74,7 @@ export function SessionFormDialog({ open, onOpenChange, slot, defaultGroupId }: 
   useEffect(() => {
     if (!open) return
     const start = slot?.start ?? new Date()
-    const end = slot?.end ?? new Date(start.getTime() + 90 * 60_000)
+    const end = slot?.end ?? new Date(start.getTime() + SESSION_MINUTES * 60_000)
     form.reset({
       groupId: defaultGroupId ?? '',
       date: toDateInput(start),
@@ -95,6 +101,7 @@ export function SessionFormDialog({ open, onOpenChange, slot, defaultGroupId }: 
         meetingUrl: v.isOnline && v.meetingUrl ? v.meetingUrl : undefined,
       },
       {
+        onError: serverErrors(form, { startsAt: 'start', endsAt: 'end' }),
         onSuccess: (created) => {
           toast.success(t('planning.created', { count: created.length }))
           onOpenChange(false)

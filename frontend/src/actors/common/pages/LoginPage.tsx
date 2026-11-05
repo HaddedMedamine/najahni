@@ -20,6 +20,7 @@ export function LoginPage() {
   const { t, i18n } = useTranslation()
   const schema = useMemo(makeSchema, [i18n.language])
   const form = useForm<Values>({
+    mode: 'onTouched',
     resolver: zodResolver(schema),
     defaultValues: { identifier: '', password: '' },
   })

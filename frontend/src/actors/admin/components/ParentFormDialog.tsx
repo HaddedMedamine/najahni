@@ -23,6 +23,7 @@ import {
   withEmailOrPhone,
 } from './AccountFields'
 import { StudentPicker } from './StudentPicker'
+import { serverErrors } from '@/core/lib/form-errors'
 
 const makeSchema = () =>
   withEmailOrPhone(z.object({ ...accountShape(), studentIds: z.array(z.string()) }))
@@ -40,7 +41,7 @@ export function ParentFormDialog({ open, onOpenChange, parent, onCreated }: Prop
   const { t, i18n } = useTranslation()
   const isEdit = Boolean(parent)
   const schema = useMemo(makeSchema, [i18n.language])
-  const form = useForm<Values>({ resolver: zodResolver(schema) })
+  const form = useForm<Values>({ mode: 'onTouched', resolver: zodResolver(schema) })
   const create = useCreateParent()
   const update = useUpdateParent()
 
@@ -54,6 +55,7 @@ export function ParentFormDialog({ open, onOpenChange, parent, onCreated }: Prop
       update.mutate(
         { id: parent.id, ...account },
         {
+          onError: serverErrors(form),
           onSuccess: () => {
             toast.success(t('common.saved'))
             onOpenChange(false)
@@ -64,6 +66,7 @@ export function ParentFormDialog({ open, onOpenChange, parent, onCreated }: Prop
       create.mutate(
         { ...toAccountInput(v), studentIds: v.studentIds },
         {
+          onError: serverErrors(form),
           onSuccess: (created) => {
             toast.success(t('parents.created'))
             onOpenChange(false)

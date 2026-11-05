@@ -20,5 +20,7 @@ export const adminRoutes: RouteObject = {
     { path: 'teachers', ...lazyPage(() => import('@/actors/admin/pages/TeachersPage'), 'TeachersPage') },
     { path: 'parents', ...lazyPage(() => import('@/actors/admin/pages/ParentsPage'), 'ParentsPage') },
     { path: 'rooms', ...lazyPage(() => import('@/actors/admin/pages/RoomsPage'), 'RoomsPage') },
+    { path: 'coding', ...lazyPage(() => import('@/actors/admin/pages/CodingFollowPage'), 'CodingFollowPage') },
+    { path: 'coding/:id', ...lazyPage(() => import('@/actors/admin/pages/CodingStudentPage'), 'CodingStudentPage') },
   ],
 }

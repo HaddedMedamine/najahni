@@ -12,5 +12,12 @@ export function getErrorMessage(error: unknown): string {
   return i18n.t('common.error')
 }
 
+/** Erreurs par champ renvoyees par l'API (`errors: { champ: message }`), sinon undefined. */
+export function getFieldErrors(error: unknown): Record<string, string> | undefined {
+  if (!isAxiosError<{ errors?: Record<string, string> }>(error)) return undefined
+  const errors = error.response?.data?.errors
+  return errors && Object.keys(errors).length > 0 ? errors : undefined
+}
+
 export const getErrorStatus = (error: unknown) =>
   isAxiosError(error) ? error.response?.status : undefined

@@ -98,3 +98,57 @@ export function useCompleteSession(id: string) {
     },
   })
 }
+
+/** Creneau deja reserve dans une salle (`mine` = une de mes seances). */
+export interface RoomReservation {
+  id: string
+  startsAt: string
+  endsAt: string
+  mine: boolean
+  room: { id: string; name: string }
+}
+
+export interface TeacherRoom {
+  id: string
+  name: string
+  capacity: number
+}
+
+export const useTeacherRooms = () =>
+  useQuery({
+    queryKey: ['teacher', 'rooms'],
+    queryFn: () => api.get<TeacherRoom[]>('/teacher/rooms').then((r) => r.data),
+  })
+
+export const useRoomOccupancy = (range: DateRange | null, enabled: boolean) =>
+  useQuery({
+    queryKey: ['teacher', 'rooms', 'occupancy', range],
+    queryFn: () => api.get<RoomReservation[]>('/teacher/rooms/occupancy', { params: range }).then((r) => r.data),
+    enabled: enabled && range !== null,
+    placeholderData: keepPreviousData,
+  })
+
+/** Planning modifie : mes seances et les reservations des salles changent. */
+function usePlanningMutation<TVariables, TData>(request: (variables: TVariables) => Promise<TData>) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: request,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: KEY })
+      void queryClient.invalidateQueries({ queryKey: ['teacher', 'rooms', 'occupancy'] })
+    },
+  })
+}
+
+export const useCreateTeacherSession = () =>
+  usePlanningMutation(
+    (input: { groupId: string; startsAt: string; endsAt: string; roomId?: string; repeatWeeks?: number }) =>
+      api.post<TeacherSession[]>('/teacher/sessions', input).then((r) => r.data),
+  )
+
+export const useUpdateTeacherSession = () =>
+  usePlanningMutation(({ id, ...input }: { id: string; startsAt?: string; endsAt?: string; roomId?: string | null }) =>
+    api.patch<TeacherSession>(`/teacher/sessions/${id}`, input).then((r) => r.data),
+  )
+
+export const useDeleteTeacherSession = () => usePlanningMutation((id: string) => api.delete(`/teacher/sessions/${id}`))

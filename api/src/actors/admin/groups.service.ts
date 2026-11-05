@@ -14,6 +14,7 @@ import {
   ListGroupsQuery,
   UpdateGroupDto,
 } from './dto/groups.dto.js';
+import { fieldError } from '../../core/common/field-errors.js';
 
 const activeMembers = { where: { leftAt: null } } as const;
 
@@ -149,7 +150,8 @@ export class GroupsService {
         where: { groupId: id, leftAt: null },
       });
       if (dto.capacity < active) {
-        throw new BadRequestException(
+        throw fieldError(
+          'capacity',
           `Capacite inferieure au nombre d'eleves inscrits (${active})`,
         );
       }

@@ -9,6 +9,7 @@ import {
   optionalEmail,
   optionalPassword,
   optionalPhone,
+  alongWith,
   requiredText,
 } from '@/core/lib/validation'
 import i18n from '@/core/i18n'
@@ -31,6 +32,7 @@ export const withEmailOrPhone = <S extends z.ZodType<{ email: string; phone: str
   schema.refine((v) => Boolean(v.email || v.phone), {
     message: i18n.t('validation.emailOrPhone'),
     path: ['phone'],
+    ...alongWith('email', 'phone'),
   })
 
 export const emptyAccount: AccountValues = {

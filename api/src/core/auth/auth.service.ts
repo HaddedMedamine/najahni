@@ -9,6 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import type { Role } from '../../generated/prisma/client.js';
 import { AuditService } from '../audit/audit.service.js';
+import { fieldError } from '../common/field-errors.js';
 import { MailService } from '../mail/mail.service.js';
 import { toLocale } from '../notifications/templates.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -256,7 +257,7 @@ export class AuthService {
       where: { id: userId },
     });
     if (!(await verifyPassword(user.passwordHash, currentPassword))) {
-      throw new BadRequestException('Mot de passe actuel incorrect');
+      throw fieldError('currentPassword', 'Mot de passe actuel incorrect');
     }
 
     await this.prisma.user.update({

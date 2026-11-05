@@ -194,6 +194,7 @@ model Student {
   evaluations   StudentEvaluation[]
   messages      Message[]
   notifications Notification[]
+  codeProgress  CodeProgress[]
 
   @@index([level, section])
   @@map("students")
@@ -728,4 +729,87 @@ model AuditLog {
   @@index([entity, entityId])
   @@index([createdAt])
   @@map("audit_logs")
+}
+
+// ============================================================
+// Coder : apprendre l'algorithmique et Python en jouant
+// ============================================================
+
+enum CodeTrack {
+  BASES // 2eme Info, 3eme Sciences, Bac Math / Sciences / Technique
+  TROIS_SI // 3eme Sciences de l'informatique
+  BAC_INFO // Bac Sciences de l'informatique
+  BAC_ECO // Bac Economie et gestion
+}
+
+enum CodeLevelKind {
+  GRID // jeu "Mission souris" : le code guide la souris sur une grille
+  PYTHON // jeu "Portes du code" : tests a passer (reponse en Python ou en algorithme)
+}
+
+enum CodeLanguage {
+  PYTHON
+  ALGO // algorithme (notation tunisienne), traduit en Python pour etre execute
+}
+
+model CodeChapter {
+  id          String        @id @default(uuid())
+  slug        String        @unique
+  kind        CodeLevelKind @default(PYTHON) // le jeu auquel appartient le chapitre
+  track       CodeTrack? // null = tous les parcours
+  order       Int
+  title       String
+  description String
+  isActive    Boolean       @default(true)
+
+  levels CodeLevel[]
+
+  @@index([track, order])
+  @@map("code_chapters")
+}
+
+model CodeLevel {
+  id          String        @id @default(uuid())
+  slug        String        @unique
+  chapterId   String
+  order       Int
+  kind        CodeLevelKind
+  title       String
+  statement   String // enonce (style Bac)
+  bitou       String // explication de Bitou, en derja
+  starterCode String
+  solution    String // visible des enseignants seulement
+  hints       String[]
+  data        Json // GRID : { worlds, stars } - PYTHON : { tests, scene, algo } (voir core/coding/types.ts)
+  builtIn     Boolean       @default(true) // fourni avec l'application (synchronise au demarrage)
+  isActive    Boolean       @default(true)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  chapter  CodeChapter    @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  progress CodeProgress[]
+
+  @@index([chapterId, order])
+  @@map("code_levels")
+}
+
+model CodeProgress {
+  id          String       @id @default(uuid())
+  studentId   String
+  levelId     String
+  attempts    Int          @default(0)
+  stars       Int          @default(0) // 0 = pas encore reussi, sinon 1 a 3
+  completedAt DateTime?
+  lastCode    String       @default("")
+  language    CodeLanguage @default(PYTHON) // langage du dernier essai
+  tdo         Json? // TDO du dernier essai en algorithme
+  bestCode    String? // code qui a obtenu le plus d'etoiles
+  updatedAt   DateTime     @updatedAt
+
+  student Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  level   CodeLevel @relation(fields: [levelId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, levelId])
+  @@index([levelId])
+  @@map("code_progress")
 }
