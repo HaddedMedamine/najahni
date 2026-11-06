@@ -35,6 +35,8 @@ export const PREDEFINED: Record<string, string> = {
   racinecarre: 'RacineCarre',
   racinecarree: 'RacineCarre',
   abs: 'Abs',
+  fin_fichier: 'Fin_fichier',
+  finfichier: 'Fin_fichier',
 }
 
 const ARITY: Record<string, number> = {
@@ -53,6 +55,7 @@ const ARITY: Record<string, number> = {
   Arrondi: 1,
   RacineCarre: 1,
   Abs: 1,
+  Fin_fichier: 1,
 }
 
 class Parser {

@@ -1,5 +1,5 @@
 import type { PackChapter, TdoRow } from '../types.js';
-import { code } from './text.js';
+import { code, START } from './text.js';
 
 /**
  * Jeu "Portes du code", parcours "Bases" : 2eme Info, 3eme Sciences, Bac Math / Sc / Tech.
@@ -41,9 +41,7 @@ export const DOORS: PackChapter[] = [
           Ahla bik! El bab hedha msakker, w ma y7ellou ken programme s7i7.
           div ta3tik el 9esma el kemla, w mod ta3tik el ba9i.
         `,
-        starterCode: code`
-          t = int(input("Donner t : "))
-        `,
+        starterCode: START,
         solution: code`
           t = int(input("Donner t : "))
           h = t // 3600
@@ -67,7 +65,7 @@ export const DOORS: PackChapter[] = [
             starter: code`
               ALGORITHME Conversion
               DEBUT
-                  Ecrire("Donner t : "), Lire(t)
+
               FIN
             `,
             solution: code`
@@ -97,9 +95,7 @@ export const DOORS: PackChapter[] = [
           Nombre b 3 chiffres : unités, dizaines w centaines.
           Kifech tfaseel-hom b div w mod?
         `,
-        starterCode: code`
-          n = int(input("Donner n : "))
-        `,
+        starterCode: START,
         solution: code`
           n = int(input("Donner n : "))
           c = n // 100
@@ -123,7 +119,7 @@ export const DOORS: PackChapter[] = [
             starter: code`
               ALGORITHME Somme_chiffres
               DEBUT
-                  Ecrire("Donner n : "), Lire(n)
+
               FIN
             `,
             solution: code`
@@ -153,9 +149,7 @@ export const DOORS: PackChapter[] = [
           Akher bab fel chapitre : sandou9 fih mafte7!
           Fakek el nombre, ba3d rakkbou bel 3aks.
         `,
-        starterCode: code`
-          n = int(input("Donner n : "))
-        `,
+        starterCode: START,
         solution: code`
           n = int(input("Donner n : "))
           m = n // 1000
@@ -180,7 +174,7 @@ export const DOORS: PackChapter[] = [
             starter: code`
               ALGORITHME Inverse
               DEBUT
-                  Ecrire("Donner n : "), Lire(n)
+
               FIN
             `,
             solution: code`
@@ -224,9 +218,7 @@ export const DOORS: PackChapter[] = [
           Fama fonctions prédéfinies 7adhrin lel chaînes.
           Rod belek : el longueur t3odd kol chay, 7atta el espaces!
         `,
-        starterCode: code`
-          ch = input("Donner ch : ")
-        `,
+        starterCode: START,
         solution: code`
           ch = input("Donner ch : ")
           print(len(ch))
@@ -247,7 +239,7 @@ export const DOORS: PackChapter[] = [
             starter: code`
               ALGORITHME Chaine
               DEBUT
-                  Ecrire("Donner ch : "), Lire(ch)
+
               FIN
             `,
             solution: code`
@@ -275,9 +267,7 @@ export const DOORS: PackChapter[] = [
           Kol 7arf 3andou numéro : el code ASCII. 'a' = 97 w 'A' = 65.
           Chnouwa el far9 binethom?
         `,
-        starterCode: code`
-          c = input("Donner c : ")
-        `,
+        starterCode: START,
         solution: code`
           c = input("Donner c : ")
           print(chr(ord(c) - 32))
@@ -297,7 +287,7 @@ export const DOORS: PackChapter[] = [
             starter: code`
               ALGORITHME Majuscule
               DEBUT
-                  Ecrire("Donner c : "), Lire(c)
+
               FIN
             `,
             solution: code`
@@ -323,9 +313,7 @@ export const DOORS: PackChapter[] = [
         bitou: code`
           Lezmek 7ajtin : win el "@" fel chaîne, w kifech te9ta3 el partie eli 9balha.
         `,
-        starterCode: code`
-          ch = input("Donner ch : ")
-        `,
+        starterCode: START,
         solution: code`
           ch = input("Donner ch : ")
           p = ch.find("@")
@@ -346,7 +334,7 @@ export const DOORS: PackChapter[] = [
             starter: code`
               ALGORITHME Utilisateur
               DEBUT
-                  Ecrire("Donner ch : "), Lire(ch)
+
               FIN
             `,
             solution: code`
@@ -377,9 +365,7 @@ export const DOORS: PackChapter[] = [
         bitou: code`
           Sandou9 el chapitre! El code fih 7arf w nombre, w lezem yetlas9ou.
         `,
-        starterCode: code`
-          ch = input("Donner ch : ")
-        `,
+        starterCode: START,
         solution: code`
           ch = input("Donner ch : ")
           print(ch[0:1].upper() + str(len(ch)))
@@ -400,7 +386,7 @@ export const DOORS: PackChapter[] = [
             starter: code`
               ALGORITHME Code_coffre
               DEBUT
-                  Ecrire("Donner ch : "), Lire(ch)
+
               FIN
             `,
             solution: code`
@@ -439,9 +425,7 @@ export const DOORS: PackChapter[] = [
           Nombre pair : ki ta9smou 3la 2, chnouwa yo93od?
           Fel Python, == lel comparaison w = lel affectation. Ma t5alt-houmch!
         `,
-        starterCode: code`
-          n = int(input("Donner n : "))
-        `,
+        starterCode: START,
         solution: code`
           n = int(input("Donner n : "))
           if n % 2 == 0:
@@ -465,7 +449,7 @@ export const DOORS: PackChapter[] = [
             starter: code`
               ALGORITHME Parite
               DEBUT
-                  Ecrire("Donner n : "), Lire(n)
+
               FIN
             `,
             solution: code`
@@ -496,9 +480,7 @@ export const DOORS: PackChapter[] = [
           Barcha toro9 : el programme y9ra el conditions mel fou9 l louta, w awel wa7da
           s7i7a ye5ou-ha w yfout el ba9i.
         `,
-        starterCode: code`
-          note = float(input("Donner la note : "))
-        `,
+        starterCode: START,
         solution: code`
           note = float(input("Donner la note : "))
           if note >= 16:
@@ -529,7 +511,7 @@ export const DOORS: PackChapter[] = [
             starter: code`
               ALGORITHME Mention
               DEBUT
-                  Ecrire("Donner la note : "), Lire(note)
+
               FIN
             `,
             solution: code`
@@ -566,11 +548,7 @@ export const DOORS: PackChapter[] = [
           Ma testa7a9ch barcha conditions : variable wa7da tnajem tchedd el akbar
           eli l9itou 7atta lel tawa.
         `,
-        starterCode: code`
-          a = int(input("a = "))
-          b = int(input("b = "))
-          c = int(input("c = "))
-        `,
+        starterCode: START,
         solution: code`
           a = int(input("a = "))
           b = int(input("b = "))
@@ -598,9 +576,7 @@ export const DOORS: PackChapter[] = [
             starter: code`
               ALGORITHME Maximum
               DEBUT
-                  Ecrire("a = "), Lire(a)
-                  Ecrire("b = "), Lire(b)
-                  Ecrire("c = "), Lire(c)
+
               FIN
             `,
             solution: code`
@@ -636,9 +612,7 @@ export const DOORS: PackChapter[] = [
         bitou: code`
           Condition kbira b et w ou. 7ott les parenthèses bech ma ytla5btouch!
         `,
-        starterCode: code`
-          a = int(input("Donner l'annee : "))
-        `,
+        starterCode: START,
         solution: code`
           a = int(input("Donner l'annee : "))
           if (a % 4 == 0 and a % 100 != 0) or a % 400 == 0:
@@ -662,7 +636,7 @@ export const DOORS: PackChapter[] = [
             starter: code`
               ALGORITHME Bissextile
               DEBUT
-                  Ecrire("Donner l'annee : "), Lire(a)
+
               FIN
             `,
             solution: code`
@@ -702,9 +676,7 @@ export const DOORS: PackChapter[] = [
           Nombre de tours ma3rouf : hedhi khedma lel boucle Pour.
           Rod belek lel 9ima el louwla mta3 el natija!
         `,
-        starterCode: code`
-          n = int(input("Donner n : "))
-        `,
+        starterCode: START,
         solution: code`
           n = int(input("Donner n : "))
           f = 1
@@ -728,7 +700,7 @@ export const DOORS: PackChapter[] = [
             starter: code`
               ALGORITHME Factorielle
               DEBUT
-                  Ecrire("Donner n : "), Lire(n)
+
               FIN
             `,
             solution: code`
@@ -759,9 +731,7 @@ export const DOORS: PackChapter[] = [
           Taw ma ta3refch 9addech men chiffre fel nombre, donc ma ta3refch 9addech men tour.
           Ana boucle tsal7ek?
         `,
-        starterCode: code`
-          n = int(input("Donner n : "))
-        `,
+        starterCode: START,
         solution: code`
           n = int(input("Donner n : "))
           s = 0
@@ -786,7 +756,7 @@ export const DOORS: PackChapter[] = [
             starter: code`
               ALGORITHME Somme_chiffres
               DEBUT
-                  Ecrire("Donner n : "), Lire(n)
+
               FIN
             `,
             solution: code`
@@ -818,9 +788,7 @@ export const DOORS: PackChapter[] = [
           Répéter ... Jusqu'à fel algo. Fel Python ma famech "repeat" :
           fama while True m3a break, wala while b el condition el 3aks.
         `,
-        starterCode: code`
-          # Saisie controlee, puis la somme
-        `,
+        starterCode: START,
         solution: code`
           while True:
               n = int(input("Donner n : "))
@@ -847,6 +815,7 @@ export const DOORS: PackChapter[] = [
             starter: code`
               ALGORITHME Somme
               DEBUT
+
               FIN
             `,
             solution: code`
@@ -881,9 +850,7 @@ export const DOORS: PackChapter[] = [
           Sandou9 el chapitre : 9awi barcha ken t7ell-ou!
           Boucle, condition, w 9arna fel ekher.
         `,
-        starterCode: code`
-          n = int(input("Donner n : "))
-        `,
+        starterCode: START,
         solution: code`
           n = int(input("Donner n : "))
           s = 0
@@ -911,7 +878,7 @@ export const DOORS: PackChapter[] = [
             starter: code`
               ALGORITHME Parfait
               DEBUT
-                  Ecrire("Donner n : "), Lire(n)
+
               FIN
             `,
             solution: code`
@@ -955,14 +922,9 @@ export const DOORS: PackChapter[] = [
         `,
         bitou: code`
           El tableau howa barcha sanade9 wara ba3dhom, kol wa7ed 3andou indice (yebda men 0).
-          Fel TDO, T type-ou Tableau. Fel Python : T = array([int()] * n) m3a from numpy import *
+          Fel TDO, T type-ou Tableau. Fel Python : T = array([int()] * 50) m3a from numpy import *
         `,
-        starterCode: code`
-          from numpy import *
-
-          n = int(input("n = "))
-          T = array([int()] * n)
-        `,
+        starterCode: START,
         solution: code`
           from numpy import *
 
@@ -990,7 +952,7 @@ export const DOORS: PackChapter[] = [
             starter: code`
               ALGORITHME Somme_tableau
               DEBUT
-                  Ecrire("n = "), Lire(n)
+
               FIN
             `,
             solution: code`
@@ -1024,14 +986,7 @@ export const DOORS: PackChapter[] = [
           Kif el max mta3 thletha, ama b boucle.
           Lezmek tchedd zouz 7ajet : el 9ima w el position.
         `,
-        starterCode: code`
-          from numpy import *
-
-          n = int(input("n = "))
-          T = array([int()] * n)
-          for i in range(n):
-              T[i] = int(input())
-        `,
+        starterCode: START,
         solution: code`
           from numpy import *
 
@@ -1066,10 +1021,7 @@ export const DOORS: PackChapter[] = [
             starter: code`
               ALGORITHME Maximum
               DEBUT
-                  Ecrire("n = "), Lire(n)
-                  Pour i de 0 à n - 1 Faire
-                      Lire(T[i])
-                  FinPour
+
               FIN
             `,
             solution: code`
@@ -1106,15 +1058,7 @@ export const DOORS: PackChapter[] = [
         bitou: code`
           Sandou9 el chapitre! Hedhi khedma lel compteur.
         `,
-        starterCode: code`
-          from numpy import *
-
-          n = int(input("n = "))
-          T = array([int()] * n)
-          for i in range(n):
-              T[i] = int(input())
-          x = int(input("x = "))
-        `,
+        starterCode: START,
         solution: code`
           from numpy import *
 
@@ -1145,11 +1089,7 @@ export const DOORS: PackChapter[] = [
             starter: code`
               ALGORITHME Occurrences
               DEBUT
-                  Ecrire("n = "), Lire(n)
-                  Pour i de 0 à n - 1 Faire
-                      Lire(T[i])
-                  FinPour
-                  Ecrire("x = "), Lire(x)
+
               FIN
             `,
             solution: code`
@@ -1224,8 +1164,9 @@ export const DOORS: PackChapter[] = [
           algo: {
             starter: code`
               Fonction somcarre(x : Entier) : Entier
-              DEBUT
-              FIN
+              Début
+
+              Fin
             `,
             solution: code`
               Fonction somcarre(x : Entier) : Entier
@@ -1260,10 +1201,6 @@ export const DOORS: PackChapter[] = [
           w fonction ta3ayet lokhra.
         `,
         starterCode: code`
-          def somcarre(x):
-              pass
-
-
           def heureux(n):
               pass
         `,
@@ -1297,13 +1234,10 @@ export const DOORS: PackChapter[] = [
           ],
           algo: {
             starter: code`
-              Fonction somcarre(x : Entier) : Entier
-              DEBUT
-              FIN
-
               Fonction heureux(n : Entier) : Booléen
-              DEBUT
-              FIN
+              Début
+
+              Fin
             `,
             solution: code`
               Fonction somcarre(x : Entier) : Entier
@@ -1370,8 +1304,9 @@ export const DOORS: PackChapter[] = [
           algo: {
             starter: code`
               Fonction premier(n : Entier) : Booléen
-              DEBUT
-              FIN
+              Début
+
+              Fin
             `,
             solution: code`
               Fonction premier(n : Entier) : Booléen
@@ -1403,9 +1338,6 @@ export const DOORS: PackChapter[] = [
           ama ybaddel fel tableau eli ta3tih.
         `,
         starterCode: code`
-          from numpy import *
-
-
           def inverser(T, n):
               pass
         `,
@@ -1448,8 +1380,9 @@ export const DOORS: PackChapter[] = [
           algo: {
             starter: code`
               Procédure inverser(@T : Tab, n : Entier)
-              DEBUT
-              FIN
+              Début
+
+              Fin
             `,
             solution: code`
               Procédure inverser(@T : Tab, n : Entier)

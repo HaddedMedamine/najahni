@@ -49,13 +49,32 @@ export interface TestCase {
   numbers?: string[]
   /** Test cache : l'eleve voit seulement s'il passe. */
   hidden?: boolean
+  /** Fichiers presents avant le programme (nom -> contenu). */
+  files?: Record<string, string>
+  /** Le programme doit fermer tous ses fichiers. */
+  closed?: boolean
+  /** Ce que verifie le test, en clair (remplace `expr` a l'affichage). */
+  label?: string
 }
+
+/** Une operation du programme sur un tableau suivi ou un fichier, rejouee par la scene. */
+export type TraceEvent = { line?: number | null } & (
+  | { t: 'get'; i: number }
+  | { t: 'set'; i: number; v: number }
+  | { t: 'open'; file: string; mode: string }
+  | { t: 'write'; file: string; text: string }
+  | { t: 'read'; file: string; text: string }
+  | { t: 'eof'; file: string }
+  | { t: 'close'; file: string }
+)
 
 export interface TestResult {
   ok: boolean
   got?: string
   stdout: string
   error: RunError | null
+  /** Premier test seulement : ce que le programme a fait. */
+  trace?: TraceEvent[]
 }
 
 export interface FreeRun {

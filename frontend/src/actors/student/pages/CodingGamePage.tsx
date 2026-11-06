@@ -26,7 +26,7 @@ export function CodingGamePage() {
   const stars = levels.reduce((sum, l) => sum + l.stars, 0)
   // La souris attend devant la premiere mission pas encore reussie
   const currentId = levels.find((l) => l.unlocked && !l.completed)?.id
-  const title = id === 'mouse' ? t('coding.gameMouse') : t('coding.gameDoors')
+  const title = { mouse: t('coding.gameMouse'), doors: t('coding.gameDoors'), bac: t('coding.gameBac') }[id]
 
   return (
     <GameStage game={id}>
@@ -45,9 +45,7 @@ export function CodingGamePage() {
       <main className="mx-auto flex w-full max-w-4xl flex-col gap-6 p-4 sm:p-6">
         <BitouSays className="game-rise">
           {done === 0
-            ? id === 'mouse'
-              ? 'El fara tayha 3la darha. Ekteb code w warri-ha el thniya!'
-              : 'Kol bab msakker b code. Ekteb el algorithme wala Python, w 7ell el portes el kol!'
+            ? WELCOME[id]
             : done === levels.length
               ? 'Kammelt kol chay! Tnajem t3awed bech tkammel el étoiles.'
               : 'Mar7ba bik men jdid! El mission eli jeya testanna fik.'}
@@ -93,6 +91,12 @@ export function CodingGamePage() {
       </main>
     </GameStage>
   )
+}
+
+const WELCOME: Record<GameId, string> = {
+  mouse: 'El fara tayha 3la darha. Ekteb code w warri-ha el thniya!',
+  doors: 'Kol bab msakker b code. Ekteb el algorithme wala Python, w 7ell el portes el kol!',
+  bac: 'Kol chapitre yebda b mission mahloula : tfarrej w tefhem, ba3d dourek enti!',
 }
 
 function nodeIcon(level: CodingMapLevel, game: GameId) {

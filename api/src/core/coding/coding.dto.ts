@@ -23,9 +23,9 @@ export class TdoRowDto {
   @MaxLength(40)
   name: string;
 
-  @ApiProperty({ enum: [...TYPES, 'Tableau'] })
-  @IsIn([...TYPES, 'Tableau'])
-  type: (typeof TYPES)[number] | 'Tableau';
+  @ApiProperty({ enum: [...TYPES, 'Tableau', 'Fichier'] })
+  @IsIn([...TYPES, 'Tableau', 'Fichier'])
+  type: (typeof TYPES)[number] | 'Tableau' | 'Fichier';
 
   @ApiPropertyOptional({ enum: TYPES })
   @IsOptional()

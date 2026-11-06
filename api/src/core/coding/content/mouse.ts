@@ -1,12 +1,11 @@
 import type { PackChapter } from '../types.js';
-import { code } from './text.js';
+import { code, START } from './text.js';
 
 /**
  * Jeu "Mission souris" : le code guide la souris sur une grille jusqu'a sa maison.
  * Commun a tous les parcours. Bitou presente les instructions, jamais la reponse.
  * Grille : # mur, . vide, S depart, H maison, C fromage, X chat.
  */
-const START = '# Ekteb el code mte3ek lena\n';
 
 export const MOUSE: PackChapter[] = [
   {
@@ -207,7 +206,7 @@ export const MOUSE: PackChapter[] = [
           'La maison est loin. Pour 3 étoiles, ton code tient en 2 lignes.',
         bitou: code`
           Bla boucle, lezmek tekteb nafs el ligne barcha marrat. Barcha!
-          for i in range(5): ya3ni "3awed 5 marrat". Eli yet3awed yetkteb ta7tha b 4 espaces.
+          for i in range(n): ya3ni "3awed n marrat". Eli yet3awed yetkteb ta7tha b 4 espaces.
         `,
         starterCode: START,
         solution: code`

@@ -745,6 +745,7 @@ enum CodeTrack {
 enum CodeLevelKind {
   GRID // jeu "Mission souris" : le code guide la souris sur une grille
   PYTHON // jeu "Portes du code" : tests a passer (reponse en Python ou en algorithme)
+  STORY // jeu "Aventure Bac" : comme PYTHON, avec une histoire et une scene qui rejoue le code
 }
 
 enum CodeLanguage {

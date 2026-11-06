@@ -23,6 +23,84 @@ beforeAll(async () => {
   ({ pythonToAlgo } = await load('src/core/algo/toAlgo.ts'));
 });
 
+describe('fichiers texte', () => {
+  const tdo: TdoRow[] = [
+    { name: 'F', type: 'Fichier' },
+    { name: 'ch', type: 'Chaîne' },
+  ];
+
+  it('traduit Ouvrir, Lire_ligne, Fin_fichier, Ecrire_nl et Fermer', () => {
+    const r = transpile(
+      [
+        'ALGORITHME T',
+        'DEBUT',
+        '  Ouvrir("a.txt", F, "r")',
+        '  TantQue Non Fin_fichier(F) Faire',
+        '    Lire_ligne(F, ch)',
+        '    Ecrire(ch)',
+        '  FinTantQue',
+        '  Fermer(F)',
+        '  Ouvrir("b.txt", F, "w")',
+        '  Ecrire(F, "x")',
+        '  Ecrire_nl(F, ch)',
+        '  Lire(F, ch)',
+        '  Fermer(F)',
+        'FIN',
+      ].join('\n'),
+      tdo,
+    );
+    expect(r.errors).toEqual([]);
+    expect(r.python).toContain('F = open("a.txt", "r")');
+    expect(r.python).toContain('while not Fin_fichier(F):');
+    expect(r.python).toContain('ch = F.readline().rstrip("\\n")');
+    expect(r.python).toContain('print(ch)');
+    expect(r.python).toContain('F.write("x")');
+    expect(r.python).toContain('F.write(ch + "\\n")');
+    expect(r.python).toContain('ch = F.read()');
+    expect(r.python).toContain('F.close()');
+  });
+
+  it('exige que le fichier soit declare dans le TDO', () => {
+    const r = transpile('Ouvrir("a.txt", F, "r")\nFermer(F)', []);
+    expect(r.errors.map((e) => e.message).join()).toContain('« F »');
+  });
+
+  it('refuse un mode inconnu et un Fermer sans fichier', () => {
+    const mode = transpile('Ouvrir("a.txt", F, "x")', tdo);
+    expect(mode.errors[0].message).toContain('Mode');
+    const close = transpile('Fermer(ch)', tdo);
+    expect(close.errors[0].message).toContain('Fermer(F)');
+  });
+
+  it('reconnait un fichier passe en parametre', () => {
+    const r = transpile(
+      'Procedure P(@F : Fichier texte, ch : Chaîne)\nDébut\n  Ecrire_nl(F, ch)\nFin',
+      [],
+    );
+    expect(r.errors).toEqual([]);
+    expect(r.python).toContain('def P(F, ch):');
+    expect(r.python).toContain('F.write(ch + "\\n")');
+  });
+
+  it('traduit un programme Python de fichiers en algorithme', () => {
+    const { algo, tdo: rows } = pythonToAlgo(
+      [
+        'F = open("a.txt", "r")',
+        'ch = F.readline()',
+        'F.close()',
+        'G = open("b.txt", "w")',
+        'G.write(ch + "\\n")',
+        'G.close()',
+      ].join('\n'),
+    );
+    expect(algo).toContain('Ouvrir("a.txt", F, "r")');
+    expect(algo).toContain('Lire_ligne(F, ch)');
+    expect(algo).toContain('Ecrire_nl(G, ch)');
+    expect(algo).toContain('Fermer(G)');
+    expect(rows).toContainEqual({ name: 'F', type: 'Fichier' });
+  });
+});
+
 describe('algorithme -> Python', () => {
   it('traduit Lire / Ecrire, div / mod et garde les lignes', () => {
     const r = transpile(

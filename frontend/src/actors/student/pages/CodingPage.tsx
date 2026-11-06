@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom'
 import { BitouAvatar } from '@/components/shared/coding/bitou'
 import { DoorScene } from '@/components/shared/coding/DoorScene'
 import { GridBoard } from '@/components/shared/coding/GridBoard'
+import { PenguinScene } from '@/components/shared/coding/story/PenguinScene'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { EmptyState, ErrorState, TableSkeleton } from '@/components/shared/States'
 import { Card } from '@/components/ui/card'
@@ -30,6 +31,16 @@ export function CodingPage() {
         </Card>
       ) : (
         <div className="grid gap-5 lg:grid-cols-2">
+          {data.games.STORY.length > 0 && (
+            <GameCard
+              to="/student/coding/bac"
+              theme="quest"
+              title={t('coding.gameBac')}
+              description={t('coding.gameBacDesc')}
+              chapters={data.games.STORY}
+              art={<PenguinScene values={[45, 80, 30, 65, 95]} target="desc" events={[]} last={[]} ms={300} outcome={null} />}
+            />
+          )}
           <GameCard
             to="/student/coding/mouse"
             theme="garden"
@@ -38,14 +49,16 @@ export function CodingPage() {
             chapters={data.games.GRID}
             art={<GridBoard world={PREVIEW_WORLD} frame={null} />}
           />
-          <GameCard
-            to="/student/coding/doors"
-            theme="temple"
-            title={t('coding.gameDoors')}
-            description={t('coding.gameDoorsDesc')}
-            chapters={data.games.PYTHON}
-            art={<DoorScene scene="door" state="idle" />}
-          />
+          {(data.games.PYTHON.length > 0 || data.games.STORY.length === 0) && (
+            <GameCard
+              to="/student/coding/doors"
+              theme="temple"
+              title={t('coding.gameDoors')}
+              description={t('coding.gameDoorsDesc')}
+              chapters={data.games.PYTHON}
+              art={<DoorScene scene="door" state="idle" />}
+            />
+          )}
         </div>
       )}
     </>
@@ -54,7 +67,7 @@ export function CodingPage() {
 
 interface GameCardProps {
   to: string
-  theme: 'garden' | 'temple'
+  theme: 'garden' | 'temple' | 'quest'
   title: string
   description: string
   chapters: CodingChapter[]

@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input, Select } from '@/components/ui/input'
 import type { ElementType, TdoRow, TdoType } from '@/core/algo/transpile'
 
-const TYPES: TdoType[] = ['Entier', 'Réel', 'Booléen', 'Caractère', 'Chaîne', 'Tableau']
+const TYPES: TdoType[] = ['Entier', 'Réel', 'Booléen', 'Caractère', 'Chaîne', 'Tableau', 'Fichier']
 const ELEMENTS: ElementType[] = ['Entier', 'Réel', 'Booléen', 'Caractère', 'Chaîne']
 
 interface Props {

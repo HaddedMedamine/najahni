@@ -1,12 +1,12 @@
 import type { PersonName } from '@/core/api/types'
 import type { TdoRow } from '@/core/algo/transpile'
-import type { TestCase } from '@/core/python/engine'
+import type { TestCase, TraceEvent } from '@/core/python/engine'
 import type { GridWorld } from '@/core/python/grid'
 
 export type CodeTrack = 'BASES' | 'TROIS_SI' | 'BAC_INFO' | 'BAC_ECO'
 export type CodeLanguage = 'PYTHON' | 'ALGO'
-/** Le jeu d'un niveau : GRID = Mission souris, PYTHON = Portes du code. */
-export type CodeLevelKind = 'GRID' | 'PYTHON'
+/** Le jeu d'un niveau : GRID = Mission souris, PYTHON = Portes du code, STORY = Aventure Bac. */
+export type CodeLevelKind = 'GRID' | 'PYTHON' | 'STORY'
 
 /** Mission souris : le meme code doit reussir sur chaque grille. */
 export interface GridData {
@@ -21,6 +21,24 @@ export interface DoorData {
   /** Ce que le bon programme ouvre. */
   scene: 'door' | 'chest'
   algo: { starter: string }
+}
+
+/** Decor d'une mission de l'Aventure Bac et son etat de depart. */
+export type StoryStage =
+  | { type: 'penguins'; values: number[]; target: 'asc' | 'desc' }
+  | { type: 'shop'; bags: Record<string, string[]> }
+
+/** Aventure Bac : une porte, avec objectif, principe et animation. */
+export interface StoryData extends DoorData {
+  story: {
+    stage: StoryStage
+    objective: string
+    principle: string[]
+    /** Petite video d'introduction : chaque etape parle puis joue ses evenements. */
+    intro: { say: string; events: TraceEvent[] }[]
+    /** Premiere mission d'un chapitre : le corrige, que l'eleve ouvre s'il le veut. */
+    solved?: { python: string; algo: string; tdo: TdoRow[]; notes: { code: string; why: string }[] }
+  }
 }
 
 /** Avancement d'un eleve (liste de suivi admin / enseignant). */

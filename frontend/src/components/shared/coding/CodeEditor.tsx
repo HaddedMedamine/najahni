@@ -64,7 +64,7 @@ const KEYWORDS =
 const STRUCTURE = /^(algorithme|debut|début|fonction|procédure|procedure)\b/i
 const OPERATORS = /^(div|mod|et|ou|non)\b/i
 const BUILTINS =
-  /^(lire|ecrire|ecrire_nl|long|pos|sous_chaine|effacer|majus|convch|valeur|estnum|ord|chr|aléa|alea|ent|arrondi|racinecarré|racinecarre|abs)\b/i
+  /^(lire_ligne|lire|ecrire_nl|ecrire|ouvrir|fermer|fin_fichier|long|pos|sous_chaine|effacer|majus|convch|valeur|estnum|ord|chr|aléa|alea|ent|arrondi|racinecarré|racinecarre|abs)\b/i
 
 /** Coloration de la notation algorithmique. */
 const algoLanguage = StreamLanguage.define({

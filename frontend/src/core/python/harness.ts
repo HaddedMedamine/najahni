@@ -1,9 +1,11 @@
 // Code Python charge une seule fois dans Pyodide : il execute le code de l'eleve
 // (fichier virtuel "<eleve>"), capture print / input, et verifie les tests.
 // Les instructions de la souris appellent le module JS `_jeu` fourni par le moteur.
+// Aventure Bac : le tableau suivi et les fichiers notent chaque operation (la "trace"),
+// que la scene rejoue ensuite : l'eleve voit ce que son propre code a fait.
 
 export const HARNESS = String.raw`
-import builtins, io, json, sys, traceback
+import builtins, io, json, os, sys, traceback
 
 
 class _Stop(BaseException):
@@ -32,6 +34,150 @@ def _ligne_eleve():
     return None
 
 
+_trace = []
+_ouverts = []
+_TRACE_MAX = 4000
+_DOSSIER = "/tmp/najahni"
+
+
+def _noter(**evenement):
+    if len(_trace) < _TRACE_MAX:
+        evenement["line"] = _ligne_eleve()
+        _trace.append(evenement)
+
+
+class _Suivi:
+    """Tableau dont chaque lecture et chaque ecriture sont notees."""
+
+    def __init__(self, valeurs):
+        self.v = list(valeurs)
+        self.lectures = 0
+        self.ecritures = 0
+
+    def _case(self, i):
+        i = int(i)
+        if i < 0 or i >= len(self.v):
+            raise IndexError(f"indice {i} : le tableau va de 0 a {len(self.v) - 1}")
+        return i
+
+    def __getitem__(self, i):
+        if isinstance(i, slice):
+            return self.v[i]
+        i = self._case(i)
+        self.lectures += 1
+        _noter(t="get", i=i)
+        return self.v[i]
+
+    def __setitem__(self, i, valeur):
+        i = self._case(i)
+        self.ecritures += 1
+        self.v[i] = _python(valeur)
+        _noter(t="set", i=i, v=self.v[i])
+
+    def __len__(self):
+        return len(self.v)
+
+    def __iter__(self):
+        return iter(list(self.v))
+
+    def tolist(self):
+        return list(self.v)
+
+
+class _Fichier:
+    """Fichier texte dont chaque operation est notee (les donnees sont dans un vrai fichier)."""
+
+    def __init__(self, nom, mode, reel):
+        self.nom = nom
+        self.reel = reel
+        _ouverts.append(self)
+        _noter(t="open", file=nom, mode=mode)
+
+    def write(self, texte):
+        n = self.reel.write(texte)
+        _noter(t="write", file=self.nom, text=texte)
+        return n
+
+    def readline(self):
+        ligne = self.reel.readline()
+        if ligne:
+            _noter(t="read", file=self.nom, text=ligne)
+        else:
+            _noter(t="eof", file=self.nom)
+        return ligne
+
+    def read(self):
+        texte = self.reel.read()
+        if texte:
+            _noter(t="read", file=self.nom, text=texte)
+        _noter(t="eof", file=self.nom)
+        return texte
+
+    def readlines(self):
+        return list(self)
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        ligne = self.readline()
+        if not ligne:
+            raise StopIteration
+        return ligne
+
+    def fin(self):
+        position = self.reel.tell()
+        vide = self.reel.read(1) == ""
+        self.reel.seek(position)
+        if vide:
+            _noter(t="eof", file=self.nom)
+        return vide
+
+    def close(self):
+        if self in _ouverts:
+            _ouverts.remove(self)
+            _noter(t="close", file=self.nom)
+        self.reel.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *erreur):
+        self.close()
+
+
+def _ouvrir(nom, mode="r", *args, **options):
+    options.setdefault("encoding", "utf-8")
+    return _Fichier(str(nom), mode, builtins.open(nom, mode, *args, **options))
+
+
+def _fin_fichier(fichier):
+    return fichier.fin()
+
+
+def _texte(nom):
+    """Contenu d'un fichier apres le programme (None s'il n'existe pas)."""
+    if not os.path.exists(nom):
+        return None
+    with builtins.open(nom, encoding="utf-8") as f:
+        return f.read()
+
+
+def _preparer(fichiers):
+    """Dossier vide pour chaque essai, avec les fichiers de depart du test."""
+    _trace.clear()
+    for f in _ouverts:
+        f.reel.close()
+    _ouverts.clear()
+    os.makedirs(_DOSSIER, exist_ok=True)
+    os.chdir(_DOSSIER)
+    for nom in os.listdir("."):
+        os.remove(nom)
+    for nom, texte in (fichiers or {}).items():
+        with builtins.open(nom, "w", encoding="utf-8") as f:
+            f.write(texte)
+
+
 def _erreur(e):
     line = None
     if isinstance(e, SyntaxError) and e.filename == "<eleve>":
@@ -53,6 +199,10 @@ def _executer(code, ns, entrees, console):
         return value
 
     ns["input"] = input
+    ns["open"] = _ouvrir
+    ns["Fin_fichier"] = _fin_fichier
+    ns["_suivi"] = _Suivi
+    ns["_texte"] = _texte
     old = sys.stdout
     sys.stdout = console
     try:
@@ -91,6 +241,7 @@ def _executer_grille(code, commandes, capteurs):
 
 
 def _executer_libre(code, entrees):
+    _preparer(None)
     console = _Console()
     err = _executer(code, {"__name__": "__main__"}, json.loads(entrees), console)
     return json.dumps({"stdout": "".join(console.transcript), "error": err})
@@ -133,12 +284,15 @@ def _egal(a, b):
 
 
 def _un_test(code, t):
+    _preparer(t.get("files"))
     console = _Console()
     ns = {"__name__": "__main__"}
     err = _executer(code, ns, t.get("inputs"), console)
-    resultat = {"ok": False, "stdout": "".join(console.transcript), "error": err}
+    resultat = {"ok": False, "stdout": "".join(console.transcript), "error": err, "trace": _trace}
     if err:
         return resultat
+    old = sys.stdout
+    sys.stdout = console
     try:
         if "expr" in t:
             # Appel de fonction : on compare la valeur obtenue a la valeur attendue
@@ -165,11 +319,23 @@ def _un_test(code, t):
                     break
                 pos = i + len(_norm(attendu))
             resultat["got"] = "".join(console.out).strip()
+        if t.get("closed") and _ouverts:
+            resultat["ok"] = False
+            resultat["got"] = f"{_ouverts[0].nom} : fichier non ferme"
     except BaseException as e:
         resultat["error"] = _erreur(e)
+    finally:
+        sys.stdout = old
+    resultat["stdout"] = "".join(console.transcript)
     return resultat
 
 
 def _executer_tests(code, tests):
-    return json.dumps([_un_test(code, t) for t in json.loads(tests)])
+    # Seule la trace du premier test est rejouee par la scene
+    resultats = []
+    for i, t in enumerate(json.loads(tests)):
+        r = _un_test(code, t)
+        r["trace"] = list(r["trace"]) if i == 0 else []
+        resultats.append(r)
+    return json.dumps(resultats)
 `

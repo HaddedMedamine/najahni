@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/core/api/client'
-import type { CodeLanguage, CodeTrack, DoorData, GridData } from '@/components/shared/coding/types'
+import type { CodeLanguage, CodeTrack, DoorData, GridData, StoryData } from '@/components/shared/coding/types'
 import type { TdoRow } from '@/core/algo/transpile'
 
 export interface CodingMapLevel {
@@ -25,7 +25,7 @@ export interface CodingChapter {
 
 export interface CodingMap {
   track: CodeTrack | null
-  games: { GRID: CodingChapter[]; PYTHON: CodingChapter[] }
+  games: { GRID: CodingChapter[]; PYTHON: CodingChapter[]; STORY: CodingChapter[] }
 }
 
 interface LevelBase {
@@ -48,7 +48,10 @@ interface LevelBase {
   nextLevelId: string | null
 }
 
-export type CodingLevel = (LevelBase & { kind: 'GRID'; data: GridData }) | (LevelBase & { kind: 'PYTHON'; data: DoorData })
+export type CodingLevel =
+  | (LevelBase & { kind: 'GRID'; data: GridData })
+  | (LevelBase & { kind: 'PYTHON'; data: DoorData })
+  | (LevelBase & { kind: 'STORY'; data: StoryData })
 
 export interface AttemptResult {
   success: boolean

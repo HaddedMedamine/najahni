@@ -17,6 +17,9 @@ export const GRID_MESSAGES: Record<GridOutcome, string> = {
   error: 'Fama ghalta fel code.',
 }
 
+/** Ce que dit Bitou quand le programme n'atteint pas l'objectif de la mission. */
+export const STORY_LOCKED = 'Chouf el scène : el objectif mazel ma t7a9a9ch. Chouf "Attendu" w "Obtenu" ta7t.'
+
 /** Ce que dit Bitou apres "Ouvrir la porte". */
 export const DOOR_MESSAGES = {
   locked: 'El bab mazal msakker : ba3dh les tests ma t3addewch. Chouf "Attendu" w "Obtenu" ta7t.',
@@ -28,13 +31,15 @@ const ERRORS: Record<string, string> = {
   IndentationError: 'Ghalta fel espaces (indentation) : el instructions ta7t if / for / while lezem 4 espaces 9eddemhom.',
   NameError: "Esm mouch m3arref : chouf el kteba mta3 el variable wala el fonction (majuscules, accents...).",
   TypeError: 'Type mouch s7i7 : mithel chaine m3a nombre. Ma tensech int(input(...)) ken t7eb nombre.',
-  ValueError: "9ima mouch s7i7a : mithel int('abc').",
+  ValueError: "9ima mouch s7i7a : mithel int('abc'), wala fichier msakker (Fermer 9bal el wa9t).",
   ZeroDivisionError: '9assamt 3la 0!',
   IndexError: 'Indice barra el tableau / el chaine : el indices yebdew men 0 7atta n - 1.',
   EOFError: "El programme 7ab ya9ra donnée (input) ama ma fama chay : fel exercice hedha, ekteb ken el fonction, wala zid donnée fel 'Entrées'.",
   KeyError: 'Cle mouch mawjouda.',
   AttributeError: "Fonction mouch mawjouda 3al objet hedha (mithel ch.uper() blaset ch.upper()).",
   RecursionError: 'El fonction t3ayet l rouha bla ma to9ef.',
+  FileNotFoundError: "Fichier mouch mawjoud : chouf el esm, wala el mode \"r\" 3la fichier ma tkhala9ch.",
+  UnsupportedOperation: 'El mode mouch s7i7 : ma tnajem t9ra ken b "r", w ma tnajem tekteb ken b "w" wala "a".',
 }
 
 /** Explication en derja d'une erreur Python, suivie du message original. */

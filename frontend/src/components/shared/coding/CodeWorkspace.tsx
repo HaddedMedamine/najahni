@@ -9,7 +9,7 @@ import { sfx } from '@/core/game/sound'
 import { cn } from '@/core/lib/utils'
 import type { FreeRun, RunError, TestCase, TestResult } from '@/core/python/engine'
 import { PythonTimeoutError, python } from '@/core/python/runner'
-import { BitouSays, DOOR_MESSAGES, explainError, TIMEOUT_MESSAGE } from './bitou'
+import { BitouSays, DOOR_MESSAGES, explainError, STORY_LOCKED, TIMEOUT_MESSAGE } from './bitou'
 import { CodeEditor, type CodeEditorHandle } from './CodeEditor'
 import { TdoEditor } from './TdoEditor'
 import type { CodeLanguage, DoorData } from './types'
@@ -30,6 +30,19 @@ interface Props {
   /** La porte ou le coffre, au-dessus des resultats. */
   scene: ReactNode
   toolbar?: ReactNode
+  /** Aventure Bac : la scene rejoue le programme, puis l'appelant termine l'essai. */
+  story?: StoryMode
+}
+
+interface StoryMode {
+  onResults: (results: TestResult[]) => void
+  playing: boolean
+  /** Ligne Python en cours dans l'animation. */
+  runLine: number | null
+  checkLabel: string
+  /** Instructions a inserer d'un clic. */
+  snippets: { label: string; text: string }[]
+  aside?: ReactNode
 }
 
 // Le clavier n'a pas ces symboles : on les insere d'un clic
@@ -53,7 +66,7 @@ const expectation = (test: TestCase) =>
  * en Python puis execute ; les erreurs sont ramenees aux lignes de l'algorithme.
  */
 export function CodeWorkspace(props: Props) {
-  const { language, code, tdo, data, onChecked, toolbar } = props
+  const { language, code, tdo, data, onChecked, toolbar, story } = props
   const { t } = useTranslation()
   const editor = useRef<CodeEditorHandle>(null)
   const usesInput = data.tests.some((test) => test.inputs)
@@ -105,7 +118,10 @@ export function CodeWorkspace(props: Props) {
       } else {
         const r = await python.runTests(program.python, data.tests)
         setResults(r)
-        onChecked(r.every((x) => x.ok))
+        if (story) {
+          setOutput({ stdout: r[0]?.stdout ?? '', error: null })
+          story.onResults(r)
+        } else onChecked(r.every((x) => x.ok))
       }
     } catch (error) {
       setFailure(error instanceof PythonTimeoutError ? TIMEOUT_MESSAGE : (error as Error).message)
@@ -130,6 +146,9 @@ export function CodeWorkspace(props: Props) {
   const errorLine = algoErrors[0]?.line ?? toEditorLine(runError?.line ?? null)
   const passed = results?.filter((r) => r.ok).length ?? 0
   const failed = results !== null && passed < results.length
+  // Les resultats attendent la fin de l'animation
+  const settled = !story?.playing
+  const snippets = [...SNIPPETS, ...(story?.snippets ?? [])]
 
   return (
     <div className="grid flex-1 gap-4 p-3 sm:p-5 lg:grid-cols-[minmax(0,6fr)_minmax(0,5fr)]">
@@ -169,7 +188,7 @@ export function CodeWorkspace(props: Props) {
                   {symbol}
                 </button>
               ))}
-              {SNIPPETS.map((s) => (
+              {snippets.map((s) => (
                 <button
                   key={s.label}
                   type="button"
@@ -190,7 +209,8 @@ export function CodeWorkspace(props: Props) {
           language={language === 'ALGO' ? 'algo' : 'python'}
           value={code}
           onChange={props.onCodeChange}
-          errorLine={errorLine}
+          errorLine={settled ? errorLine : null}
+          runLine={story ? toEditorLine(story.runLine) : null}
           className="h-80 xl:h-[24rem]"
         />
 
@@ -200,15 +220,17 @@ export function CodeWorkspace(props: Props) {
             className="game-cta"
             onClick={() => execute('check')}
             loading={busy === 'check'}
-            disabled={busy !== null}
+            disabled={busy !== null || !settled}
           >
-            <KeyRound />
-            {data.scene === 'chest' ? t('coding.checkChest') : t('coding.check')}
+            {story ? <Play /> : <KeyRound />}
+            {story?.checkLabel ?? (data.scene === 'chest' ? t('coding.checkChest') : t('coding.check'))}
           </Button>
-          <Button variant="outline" onClick={() => execute('run')} loading={busy === 'run'} disabled={busy !== null}>
-            <Play />
-            {t('coding.execute')}
-          </Button>
+          {!story && (
+            <Button variant="outline" onClick={() => execute('run')} loading={busy === 'run'} disabled={busy !== null}>
+              <Play />
+              {t('coding.execute')}
+            </Button>
+          )}
           {language === 'ALGO' ? (
             <Button variant="ghost" size="sm" onClick={() => setShowPython((v) => !v)}>
               <Code2 />
@@ -232,6 +254,7 @@ export function CodeWorkspace(props: Props) {
 
       <div className="flex min-w-0 flex-col gap-3">
         <div className="overflow-hidden rounded-2xl border border-border">{props.scene}</div>
+        {story?.aside}
 
         {converted && <BitouSays>{t('coding.toAlgoDone')}</BitouSays>}
 
@@ -249,7 +272,7 @@ export function CodeWorkspace(props: Props) {
           </BitouSays>
         )}
 
-        {runError && (
+        {runError && settled && (
           <BitouSays tone="error" className="game-rise">
             {explainError(runError)}
             <span className="mt-1 block font-mono text-xs opacity-80">
@@ -260,20 +283,20 @@ export function CodeWorkspace(props: Props) {
           </BitouSays>
         )}
         {failure && <BitouSays tone="error">{failure}</BitouSays>}
-        {failed && !runError && (
+        {failed && !runError && settled && (
           <BitouSays tone="error" className="game-rise">
-            {DOOR_MESSAGES.locked}
+            {story ? STORY_LOCKED : DOOR_MESSAGES.locked}
           </BitouSays>
         )}
 
-        {usesInput && (
+        {usesInput && !story && (
           <label className="flex flex-col gap-1.5 text-sm font-medium">
             {t('coding.inputs')}
             <textarea dir="ltr" value={inputs} onChange={(e) => setInputs(e.target.value)} className={textareaClass} />
           </label>
         )}
 
-        {output && (
+        {output && settled && (output.stdout || !story) && (
           <Card className="p-3">
             <p className="mb-2 text-xs font-semibold text-muted-foreground">{t('coding.console')}</p>
             <pre dir="ltr" className="max-h-64 overflow-auto text-sm whitespace-pre-wrap">
@@ -282,7 +305,7 @@ export function CodeWorkspace(props: Props) {
           </Card>
         )}
 
-        {results && (
+        {results && settled && (
           <Card className="flex flex-col gap-2 p-3">
             <p className="flex items-center justify-between text-xs font-semibold text-muted-foreground">
               {t('coding.tests')}
@@ -325,12 +348,12 @@ function TestRow({ index, test, result }: { index: number; test: TestCase; resul
             {t('coding.hiddenTest')}
           </span>
         ) : (
-          t('coding.test', { n: index + 1 })
+          (test.label ?? t('coding.test', { n: index + 1 }))
         )}
       </p>
       {!test.hidden && (
         <dl dir="ltr" className="mt-1.5 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 font-mono">
-          {test.expr && (
+          {test.expr && !test.label && (
             <>
               <dt className="text-muted-foreground">&gt;&gt;&gt;</dt>
               <dd>{test.expr}</dd>

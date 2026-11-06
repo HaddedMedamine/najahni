@@ -2,8 +2,22 @@
 import { useSyncExternalStore } from 'react'
 import { readStorage, writeStorage } from '@/core/lib/storage'
 
-export type Sfx = 'click' | 'step' | 'turn' | 'pick' | 'bump' | 'cat' | 'lock' | 'open' | 'star' | 'win' | 'hint'
-export type MusicMood = 'garden' | 'temple'
+export type Sfx =
+  | 'click'
+  | 'step'
+  | 'turn'
+  | 'pick'
+  | 'bump'
+  | 'cat'
+  | 'lock'
+  | 'open'
+  | 'star'
+  | 'win'
+  | 'hint'
+  | 'hop'
+  | 'drop'
+  | 'alert'
+export type MusicMood = 'garden' | 'temple' | 'quest'
 
 const STORAGE_KEY = 'najahni.coding.muted'
 
@@ -71,6 +85,12 @@ const SOUNDS: Record<Sfx, Note[]> = {
   star: arpeggio([1047, 1568], 0.07, 0.18, 'sine', 0.11),
   win: arpeggio([523, 659, 784, 1047, 784, 1047, 1319], 0.1, 0.26, 'triangle', 0.11),
   hint: arpeggio([880, 1175], 0.08, 0.16, 'sine', 0.07),
+  hop: [{ f: 340, to: 680, dur: 0.12, type: 'triangle', gain: 0.07 }],
+  drop: [
+    { f: 520, to: 180, dur: 0.16, type: 'sine', gain: 0.1 },
+    { f: 120, dur: 0.08, at: 0.14, type: 'triangle', gain: 0.08 },
+  ],
+  alert: arpeggio([988, 1319, 988, 1319], 0.09, 0.12, 'square', 0.05),
 }
 
 export function sfx(name: Sfx) {
@@ -85,6 +105,8 @@ const SCALES: Record<MusicMood, { notes: number[]; beat: number; type: Oscillato
   garden: { notes: [262, 294, 330, 392, 440, 523, 587, 659], beat: 520, type: 'triangle' },
   // Maqam hijaz sur Re : le temple, mysterieux
   temple: { notes: [147, 156, 185, 196, 220, 233, 262, 294], beat: 760, type: 'sine' },
+  // La mineur pentatonique : l'aventure, entrainante
+  quest: { notes: [220, 262, 294, 330, 392, 440, 523, 587], beat: 430, type: 'triangle' },
 }
 
 let musicTimer: number | undefined

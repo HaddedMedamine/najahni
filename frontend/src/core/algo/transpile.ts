@@ -3,8 +3,8 @@
 import { callsIn, type Expr, ExprError, type Imports, namesIn, parseExpr, PREDEFINED, toPython } from './expr.ts'
 import { type Token, tokenizeLine } from './tokens.ts'
 
-export type TdoType = 'Entier' | 'Réel' | 'Booléen' | 'Caractère' | 'Chaîne' | 'Tableau'
-export type ElementType = Exclude<TdoType, 'Tableau'>
+export type TdoType = 'Entier' | 'Réel' | 'Booléen' | 'Caractère' | 'Chaîne' | 'Tableau' | 'Fichier'
+export type ElementType = Exclude<TdoType, 'Tableau' | 'Fichier'>
 
 /** Une ligne du tableau de declaration des objets. */
 export interface TdoRow {
@@ -63,6 +63,7 @@ interface Block {
 const SPLIT_BEFORE = new Set(['sinonsi', 'sinon', 'finsi', 'finpour', 'fintantque', 'jusqua', 'repeter'])
 const SPLIT_AFTER = new Set(['alors', 'faire', 'repeter', 'debut'])
 const SCALAR_TYPES = new Set(['entier', 'reel', 'booleen', 'caractere', 'chaine'])
+const FILE_MODES = new Set(['r', 'w', 'a'])
 
 /** Une instruction par element : "Si x > 0 Alors Ecrire(x) FinSi" -> 3 instructions. */
 function splitStatements(source: string, errors: AlgoError[]): Statement[] {
@@ -88,7 +89,7 @@ function splitStatements(source: string, errors: AlgoError[]): Statement[] {
       if (t.kind === 'id' && SPLIT_BEFORE.has(t.key)) flush()
       // "Ecrire("n = "), Lire(n)" : deux instructions sur une ligne
       const next = tokens[i + 1]
-      if (depth === 0 && t.kind === 'op' && t.key === ',' && next?.kind === 'id' && ['lire', 'ecrire', 'ecrire_nl'].includes(next.key)) {
+      if (depth === 0 && t.kind === 'op' && t.key === ',' && next?.kind === 'id' && ['lire', 'lire_ligne', 'ecrire', 'ecrire_nl'].includes(next.key)) {
         flush()
         return
       }
@@ -184,6 +185,8 @@ export function transpile(source: string, tdo: TdoRow[] | null): Transpiled {
     return index === null ? null : { name, python: `${name}[${index}]`, indexed: true }
   }
   const signatures = new Map<string, Param[]>()
+  // Noms logiques des fichiers : declares dans le TDO, ouverts ou recus en parametre
+  const files = new Set((tdo ?? []).filter((row) => row.type === 'Fichier').map((row) => row.name.trim().toLowerCase()))
 
   // Premier passage : signatures des modules (un appel peut preceder la definition)
   for (const s of statements) {
@@ -191,8 +194,14 @@ export function transpile(source: string, tdo: TdoRow[] | null): Transpiled {
     if (isKey(head, 'fonction') || isKey(head, 'procedure')) {
       const sig = parseSignature(s.tokens, s.line, errors)
       if (sig) signatures.set(sig.name.toLowerCase(), sig.params)
+      for (const p of sig?.params ?? []) if (p.type === 'fichier') files.add(p.name.toLowerCase())
+    }
+    if (isKey(head, 'ouvrir')) {
+      const logical = callArgs(s.tokens, s.line, [])?.[1]
+      if (logical?.length === 1) files.add(logical[0].key)
     }
   }
+  const isFile = (tokens: Token[] | undefined) => tokens?.length === 1 && tokens[0].kind === 'id' && files.has(tokens[0].key)
 
   for (const s of statements) {
     const [head] = s.tokens
@@ -302,8 +311,57 @@ export function transpile(source: string, tdo: TdoRow[] | null): Transpiled {
         if (mod?.kind !== 'fonction') errors.push({ line, message: 'Retourner est reserve aux fonctions' })
         emit(`return ${expr(rest, line)}`, line)
         continue
+      case 'ouvrir': {
+        const args = callArgs(s.tokens, line, errors)
+        if (args?.length !== 3) {
+          if (args) errors.push({ line, message: 'Forme attendue : Ouvrir("nom_physique", F, "mode")' })
+          continue
+        }
+        const mode = args[2].length === 1 && args[2][0].kind === 'str' ? args[2][0].raw : ''
+        if (!FILE_MODES.has(mode)) {
+          errors.push({ line, message: 'Mode d\'ouverture attendu : "r", "w" ou "a"' })
+          continue
+        }
+        const name = expr(args[0], line)
+        const t = target(args[1], line)
+        if (name !== null && t) emit(`${t.python} = open(${name}, "${mode}")`, line)
+        continue
+      }
+      case 'fermer': {
+        const args = callArgs(s.tokens, line, errors)
+        if (!args) continue
+        if (args.length !== 1 || !isFile(args[0])) {
+          errors.push({ line, message: 'Forme attendue : Fermer(F), avec F un fichier' })
+          continue
+        }
+        emit(`${expr(args[0], line)}.close()`, line)
+        continue
+      }
+      case 'lire_ligne': {
+        const args = callArgs(s.tokens, line, errors)
+        if (!args) continue
+        if (args.length !== 2 || !isFile(args[0])) {
+          errors.push({ line, message: 'Forme attendue : Lire_ligne(F, ch), avec F un fichier' })
+          continue
+        }
+        const file = expr(args[0], line)
+        const t = target(args[1], line)
+        // Une ligne du fichier, sans le retour a la ligne : comparable a une chaine
+        if (t) emit(`${t.python} = ${file}.readline().rstrip("\\n")`, line)
+        continue
+      }
       case 'lire': {
         const args = callArgs(s.tokens, line, errors)
+        if (isFile(args?.[0])) {
+          if (args?.length !== 2) {
+            errors.push({ line, message: 'Forme attendue : Lire(F, ch)' })
+            continue
+          }
+          const file = expr(args[0], line)
+          const t = target(args[1], line)
+          if (t) emit(`${t.python} = ${file}.read()`, line)
+          continue
+        }
         for (const arg of args ?? []) {
           const t = target(arg, line)
           if (!t) continue
@@ -327,6 +385,16 @@ export function transpile(source: string, tdo: TdoRow[] | null): Transpiled {
       case 'ecrire_nl': {
         const args = callArgs(s.tokens, line, errors)
         if (!args) continue
+        if (isFile(args[0])) {
+          if (args.length !== 2) {
+            errors.push({ line, message: `Forme attendue : ${head.raw}(F, ch)` })
+            continue
+          }
+          const file = expr(args[0], line)
+          const value = expr(args[1], line)
+          if (value !== null) emit(`${file}.write(${value}${key === 'ecrire_nl' ? ' + "\\n"' : ''})`, line)
+          continue
+        }
         const parts = args.map((a) => expr(a, line))
         emit(`print(${parts.join(', ')})`, line)
         if (args.length === 1 && parts[0] !== null) {
@@ -468,6 +536,8 @@ function parseSignature(tokens: Token[], line: number, errors: AlgoError[]) {
         const type = tokens[i + 1]?.key ?? ''
         for (const p of pending.splice(0)) params.push({ ...p, type })
         i++
+        // "Fichier texte" : deux mots pour un seul type
+        if (type === 'fichier' && tokens[i + 1]?.key === 'texte') i++
       }
     }
     for (const p of pending) params.push({ ...p, type: '' })

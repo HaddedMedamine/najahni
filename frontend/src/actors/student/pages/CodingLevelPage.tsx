@@ -1,8 +1,8 @@
-import { Loader2, Target } from 'lucide-react'
+import { Clapperboard, Loader2, Target } from 'lucide-react'
 import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
-import { SUCCESS_MESSAGES } from '@/components/shared/coding/bitou'
+import { BitouSays, SUCCESS_MESSAGES } from '@/components/shared/coding/bitou'
 import { CodeWorkspace } from '@/components/shared/coding/CodeWorkspace'
 import { DoorScene, type SceneState } from '@/components/shared/coding/DoorScene'
 import {
@@ -16,11 +16,16 @@ import {
   VictoryOverlay,
 } from '@/components/shared/coding/GameStage'
 import { MouseWorkspace } from '@/components/shared/coding/MouseWorkspace'
+import { SolutionPanel, StoryIntro } from '@/components/shared/coding/story/StoryIntro'
+import { StoryScene } from '@/components/shared/coding/story/StoryScene'
+import { useTracePlayer } from '@/components/shared/coding/story/useTracePlayer'
 import type { CodeLanguage } from '@/components/shared/coding/types'
+import { Button } from '@/components/ui/button'
 import { ErrorState, TableSkeleton } from '@/components/shared/States'
 import type { TdoRow } from '@/core/algo/transpile'
 import { sfx } from '@/core/game/sound'
 import { readStorage, writeStorage } from '@/core/lib/storage'
+import type { TestResult } from '@/core/python/engine'
 import { python, usePythonStatus } from '@/core/python/runner'
 import { type AttemptResult, type CodingLevel, useCodeAttempt, useCodingLevel } from '../api/coding.api'
 
@@ -40,7 +45,9 @@ export function CodingLevelPage() {
   if (isError || !data) return <ErrorState onRetry={refetch} />
   return (
     <GameStage game={game as GameId}>
-      {data.kind === 'GRID' ? <MouseLevel key={data.id} level={data} /> : <DoorLevel key={data.id} level={data} />}
+      {data.kind === 'GRID' && <MouseLevel key={data.id} level={data} />}
+      {data.kind === 'PYTHON' && <DoorLevel key={data.id} level={data} />}
+      {data.kind === 'STORY' && <StoryLevel key={data.id} level={data} />}
     </GameStage>
   )
 }
@@ -48,7 +55,14 @@ export function CodingLevelPage() {
 // Brouillons par niveau dans le navigateur (le serveur garde le code de chaque essai)
 const draftKey = (levelId: string, part: 'PYTHON' | 'ALGO' | 'TDO') => `najahni.coding.${levelId}.${part}`
 
+/** Code a reprendre. Une mission reussie repart de zero : l'eleve la reecrit lui-meme. */
+const resume = (level: CodingLevel, part: 'PYTHON' | 'ALGO', sameLanguage: boolean) =>
+  level.progress.completed
+    ? null
+    : (readStorage(draftKey(level.id, part)) ?? (sameLanguage ? level.progress.lastCode : null))
+
 function readTdo(level: CodingLevel): TdoRow[] {
+  if (level.progress.completed) return []
   try {
     const draft = readStorage(draftKey(level.id, 'TDO'))
     if (draft) return JSON.parse(draft) as TdoRow[]
@@ -58,18 +72,24 @@ function readTdo(level: CodingLevel): TdoRow[] {
   return level.progress.tdo ?? []
 }
 
-/** Barre, mission, briefing et victoire : commun aux deux jeux. */
+/** Barre, mission, briefing et victoire : commun aux jeux. */
 function LevelFrame({
   game,
   level,
   result,
   onStay,
+  saveFailed,
+  briefing,
   children,
 }: {
   game: GameId
   level: CodingLevel
   result: AttemptResult | null
   onStay: () => void
+  /** L'essai n'a pas pu etre enregistre : la mission suivante ne s'ouvrira pas. */
+  saveFailed: boolean
+  /** Remplace l'ecran de mission ; l'eleve peut le revoir depuis la barre. */
+  briefing?: (start: () => void) => ReactNode
   children: ReactNode
 }) {
   const { t } = useTranslation()
@@ -88,6 +108,12 @@ function LevelFrame({
           </span>
         )}
         {level.progress.completed && <Stars value={level.progress.stars} className="text-lg" />}
+        {briefing && (
+          <Button variant="outline" onClick={() => setStarted(false)} title={t('coding.storyReplay')}>
+            <Clapperboard />
+            <span className="hidden sm:inline">{t('coding.storyReplay')}</span>
+          </Button>
+        )}
         <HintsButton hints={level.hints} />
       </GameHud>
 
@@ -96,26 +122,35 @@ function LevelFrame({
         {level.statement}
       </p>
 
+      {saveFailed && (
+        <BitouSays tone="error" className="game-rise px-3 pt-3 sm:px-5">
+          {t('coding.saveFailed')}
+        </BitouSays>
+      )}
+
       {children}
 
-      {!started && (
-        <MissionBriefing
-          label={level.chapter.title}
-          title={level.title}
-          statement={level.statement}
-          bitou={level.bitou}
-          onStart={() => setStarted(true)}
-        />
-      )}
+      {!started &&
+        (briefing ? (
+          briefing(() => setStarted(true))
+        ) : (
+          <MissionBriefing
+            label={level.chapter.title}
+            title={level.title}
+            statement={level.statement}
+            bitou={level.bitou}
+            onStart={() => setStarted(true)}
+          />
+        ))}
       {result && (
         <VictoryOverlay
           stars={result.stars}
           title={
-            game === 'mouse'
-              ? t('coding.missionDone')
-              : level.kind === 'PYTHON' && level.data.scene === 'chest'
+            game === 'doors'
+              ? level.kind === 'PYTHON' && level.data.scene === 'chest'
                 ? t('coding.successChest')
                 : t('coding.successTitle')
+              : t('coding.missionDone')
           }
           message={
             SUCCESS_MESSAGES[result.attempts % SUCCESS_MESSAGES.length] +
@@ -132,9 +167,7 @@ function LevelFrame({
 
 function MouseLevel({ level }: { level: Level<'GRID'> }) {
   const attempt = useCodeAttempt(level.id)
-  const [code, setCode] = useState(
-    () => readStorage(draftKey(level.id, 'PYTHON')) ?? level.progress.lastCode ?? level.starterCode,
-  )
+  const [code, setCode] = useState(() => resume(level, 'PYTHON', true) ?? level.starterCode)
   const [result, setResult] = useState<AttemptResult | null>(null)
 
   const changeCode = (value: string) => {
@@ -153,7 +186,13 @@ function MouseLevel({ level }: { level: Level<'GRID'> }) {
     )
 
   return (
-    <LevelFrame game="mouse" level={level} result={result} onStay={() => setResult(null)}>
+    <LevelFrame
+      game="mouse"
+      level={level}
+      result={result}
+      saveFailed={attempt.isError}
+      onStay={() => setResult(null)}
+    >
       <MouseWorkspace
         code={code}
         onCodeChange={changeCode}
@@ -165,28 +204,18 @@ function MouseLevel({ level }: { level: Level<'GRID'> }) {
   )
 }
 
-function DoorLevel({ level }: { level: Level<'PYTHON'> }) {
-  const attempt = useCodeAttempt(level.id)
+/** Le programme d'une mission : algorithme, Python et TDO, avec leurs brouillons. */
+function useProgram(level: Level<'PYTHON'> | Level<'STORY'>) {
   const last = level.progress
   // Premiere visite : on commence par l'algorithme, comme en classe
   const [language, setLanguage] = useState<CodeLanguage>(last.attempts > 0 ? last.language : 'ALGO')
   const [pythonCode, setPythonCode] = useState(
-    () =>
-      readStorage(draftKey(level.id, 'PYTHON')) ??
-      (last.language === 'PYTHON' ? last.lastCode : null) ??
-      level.starterCode,
+    () => resume(level, 'PYTHON', last.language === 'PYTHON') ?? level.starterCode,
   )
   const [algoCode, setAlgoCode] = useState(
-    () =>
-      readStorage(draftKey(level.id, 'ALGO')) ??
-      (last.language === 'ALGO' ? last.lastCode : null) ??
-      level.data.algo.starter,
+    () => resume(level, 'ALGO', last.language === 'ALGO') ?? level.data.algo.starter,
   )
   const [tdo, setTdo] = useState<TdoRow[]>(() => readTdo(level))
-  const [scene, setScene] = useState<SceneState>('idle')
-  const [result, setResult] = useState<AttemptResult | null>(null)
-  const timer = useRef<number | undefined>(undefined)
-  useEffect(() => () => window.clearTimeout(timer.current), [])
 
   const code = language === 'ALGO' ? algoCode : pythonCode
   const setCode = (value: string) => {
@@ -198,6 +227,32 @@ function DoorLevel({ level }: { level: Level<'PYTHON'> }) {
     setTdo(rows)
     writeStorage(draftKey(level.id, 'TDO'), JSON.stringify(rows))
   }
+
+  return {
+    language,
+    onLanguageChange: setLanguage,
+    code,
+    onCodeChange: setCode,
+    tdo,
+    onTdoChange: changeTdo,
+    onConvertedToAlgo: (algo: string, rows: TdoRow[]) => {
+      setAlgoCode(algo)
+      writeStorage(draftKey(level.id, 'ALGO'), algo)
+      changeTdo(rows)
+      setLanguage('ALGO')
+    },
+    onReset: () => setCode(language === 'ALGO' ? level.data.algo.starter : level.starterCode),
+  }
+}
+
+function DoorLevel({ level }: { level: Level<'PYTHON'> }) {
+  const attempt = useCodeAttempt(level.id)
+  const program = useProgram(level)
+  const { code, language, tdo } = program
+  const [scene, setScene] = useState<SceneState>('idle')
+  const [result, setResult] = useState<AttemptResult | null>(null)
+  const timer = useRef<number | undefined>(undefined)
+  useEffect(() => () => window.clearTimeout(timer.current), [])
 
   const checked = (success: boolean) => {
     window.clearTimeout(timer.current)
@@ -221,28 +276,102 @@ function DoorLevel({ level }: { level: Level<'PYTHON'> }) {
       game="doors"
       level={level}
       result={result}
+      saveFailed={attempt.isError}
       onStay={() => {
         setResult(null)
         setScene('idle')
       }}
     >
       <CodeWorkspace
-        language={language}
-        onLanguageChange={setLanguage}
-        code={code}
-        onCodeChange={setCode}
-        tdo={tdo}
-        onTdoChange={changeTdo}
+        {...program}
         data={level.data}
         onChecked={checked}
-        onConvertedToAlgo={(algo, rows) => {
-          setAlgoCode(algo)
-          writeStorage(draftKey(level.id, 'ALGO'), algo)
-          changeTdo(rows)
-          setLanguage('ALGO')
-        }}
-        onReset={() => setCode(language === 'ALGO' ? level.data.algo.starter : level.starterCode)}
         scene={<DoorScene scene={level.data.scene} state={scene} />}
+      />
+    </LevelFrame>
+  )
+}
+
+// Instructions des fichiers, a inserer d'un clic
+const FILE_SNIPPETS = [
+  { label: 'Ouvrir', text: 'Ouvrir("sac.txt", F, "r")' },
+  { label: 'Lire_ligne', text: 'Lire_ligne(F, ch)' },
+  { label: 'Ecrire_nl', text: 'Ecrire_nl(F, ch)' },
+  { label: 'Fin_fichier', text: 'Fin_fichier(F)' },
+  { label: 'Fermer', text: 'Fermer(F)' },
+]
+
+/** Aventure Bac : introduction, puis la scene rejoue ce que le programme a vraiment fait. */
+function StoryLevel({ level }: { level: Level<'STORY'> }) {
+  const { t } = useTranslation()
+  const { story } = level.data
+  const attempt = useCodeAttempt(level.id)
+  const program = useProgram(level)
+  const { code, language, tdo } = program
+  const player = useTracePlayer()
+  const [outcome, setOutcome] = useState<'win' | 'lose' | null>(null)
+  const [result, setResult] = useState<AttemptResult | null>(null)
+  const timer = useRef<number | undefined>(undefined)
+  useEffect(() => () => window.clearTimeout(timer.current), [])
+
+  const finish = (success: boolean) => {
+    setOutcome(success ? 'win' : 'lose')
+    sfx(success ? 'open' : 'lock')
+    attempt.mutate(
+      { code, success, language, tdo: language === 'ALGO' ? tdo : undefined },
+      {
+        onSuccess: (r) => {
+          // On laisse la scene feter la reussite avant l'ecran de victoire
+          if (r.success) timer.current = window.setTimeout(() => setResult(r), 1700)
+        },
+      },
+    )
+  }
+
+  const replay = (results: TestResult[]) => {
+    setOutcome(null)
+    player.play(results[0]?.trace ?? [], () => finish(results.every((r) => r.ok)))
+  }
+
+  return (
+    <LevelFrame
+      game="bac"
+      level={level}
+      result={result}
+      saveFailed={attempt.isError}
+      onStay={() => setResult(null)}
+      briefing={(start) => (
+        <StoryIntro
+          label={level.chapter.title}
+          title={level.title}
+          statement={level.statement}
+          story={story}
+          onStart={start}
+        />
+      )}
+    >
+      <CodeWorkspace
+        {...program}
+        data={level.data}
+        onChecked={finish}
+        story={{
+          onResults: replay,
+          playing: player.playing,
+          runLine: player.line,
+          checkLabel: t('coding.run'),
+          snippets: story.stage.type === 'shop' ? FILE_SNIPPETS : [],
+          aside: story.solved && <SolutionPanel solved={story.solved} language={language} />,
+        }}
+        scene={
+          <div className="relative">
+            <StoryScene stage={story.stage} events={player.events} last={player.last} ms={player.ms} outcome={outcome} />
+            {player.playing && (
+              <Button variant="outline" size="sm" className="absolute end-2 bottom-2" onClick={player.skip}>
+                {t('coding.storySkip')}
+              </Button>
+            )}
+          </div>
+        }
       />
     </LevelFrame>
   )

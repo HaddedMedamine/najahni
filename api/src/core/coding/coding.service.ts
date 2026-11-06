@@ -107,13 +107,15 @@ export class CodingService implements OnApplicationBootstrap {
   /** Les deux jeux de l'eleve : chapitres, niveaux, etoiles et verrous. */
   async studentMap(userId: string) {
     const { student, track } = await this.studentTrack(userId);
-    if (!track) return { track: null, games: { GRID: [], PYTHON: [] } };
+    if (!track)
+      return { track: null, games: { GRID: [], PYTHON: [], STORY: [] } };
     const progress = await this.progressByLevel(student.id);
-    const [GRID, PYTHON] = await Promise.all([
+    const [GRID, PYTHON, STORY] = await Promise.all([
       this.gameChapters(track, 'GRID', progress),
       this.gameChapters(track, 'PYTHON', progress),
+      this.gameChapters(track, 'STORY', progress),
     ]);
-    return { track, games: { GRID, PYTHON } };
+    return { track, games: { GRID, PYTHON, STORY } };
   }
 
   /** Chapitres d'un jeu : chaque niveau s'ouvre quand le precedent du jeu est reussi. */
@@ -137,13 +139,16 @@ export class CodingService implements OnApplicationBootstrap {
     let previousDone = true;
     return chapters.map(({ levels, ...chapter }) => ({
       ...chapter,
-      levels: levels.map(({ data, ...level }) => {
+      levels: levels.map(({ data, ...level }, index) => {
         const p = progress.get(level.id);
-        const unlocked = previousDone || Boolean(p?.completedAt);
+        const unlocked =
+          previousDone ||
+          Boolean(p?.completedAt) ||
+          (index === 0 && opensChapters(kind));
         previousDone = Boolean(p?.completedAt);
         return {
           ...level,
-          scene: kind === 'PYTHON' ? (data as unknown as DoorData).scene : null,
+          scene: kind === 'GRID' ? null : (data as unknown as DoorData).scene,
           unlocked,
           stars: p?.stars ?? 0,
           attempts: p?.attempts ?? 0,
@@ -160,7 +165,9 @@ export class CodingService implements OnApplicationBootstrap {
     const progress = await this.progressByLevel(student.id);
     const index = ordered.findIndex((l) => l.id === levelId);
     const previous = ordered[index - 1];
-    if (previous && !progress.get(previous.id)?.completedAt) {
+    const opensChapter =
+      opensChapters(level.kind) && previous?.chapterId !== level.chapterId;
+    if (previous && !opensChapter && !progress.get(previous.id)?.completedAt) {
       throw new ForbiddenException(
         'Reussissez le niveau precedent pour ouvrir celui-ci',
       );
@@ -169,7 +176,7 @@ export class CodingService implements OnApplicationBootstrap {
     const p = progress.get(levelId);
     return {
       ...visible,
-      data: level.kind === 'PYTHON' ? hideAlgoSolution(data) : data,
+      data: level.kind === 'GRID' ? data : hideAlgoSolution(data),
       progress: {
         stars: p?.stars ?? 0,
         attempts: p?.attempts ?? 0,
@@ -355,7 +362,7 @@ export class CodingService implements OnApplicationBootstrap {
     const ordered = await this.prisma.codeLevel.findMany({
       where: trackLevels(track, level.kind),
       orderBy: levelOrder,
-      select: { id: true },
+      select: { id: true, chapterId: true },
     });
     return { level, ordered };
   }
@@ -379,6 +386,9 @@ export class CodingService implements OnApplicationBootstrap {
     return counts;
   }
 }
+
+/** Aventure Bac : la premiere mission de chaque chapitre est toujours ouverte. */
+const opensChapters = (kind: CodeLevelKind) => kind === 'STORY';
 
 /** L'eleve recoit le squelette de l'algorithme, jamais la solution ni le TDO. */
 function hideAlgoSolution(data: unknown) {

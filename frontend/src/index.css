@@ -240,6 +240,15 @@ body {
   --primary-soft: #453217;
   --game-glow: #b48cff;
 }
+.game-stage[data-theme='quest'] {
+  --background: #0a1a33;
+  --card: #122a4a;
+  --muted: #1a3a60;
+  --border: #2e5a86;
+  --primary: #ffc857;
+  --primary-soft: #3a3a2c;
+  --game-glow: #7fd4ff;
+}
 /* Ciel de la scene */
 .game-sky {
   position: absolute;
@@ -256,6 +265,11 @@ body {
   background:
     radial-gradient(60rem 26rem at 15% -8%, rgb(180 140 255 / 0.24), transparent 70%),
     radial-gradient(44rem 22rem at 95% 105%, rgb(255 179 71 / 0.12), transparent 70%);
+}
+.game-stage[data-theme='quest'] .game-sky {
+  background:
+    radial-gradient(60rem 26rem at 50% -8%, rgb(127 212 255 / 0.22), transparent 70%),
+    radial-gradient(44rem 22rem at 90% 105%, rgb(255 200 87 / 0.12), transparent 70%);
 }
 .game-spark {
   position: absolute;
@@ -333,6 +347,31 @@ body {
   border-radius: 2px;
   animation: game-confetti var(--fall, 2.6s) linear var(--delay, 0s) both;
 }
+.game-hop {
+  animation: game-hop 0.5s ease-in-out var(--hop-delay, 0ms) 3 both;
+}
+.shop-fly {
+  animation: shop-fly var(--fly-time, 400ms) ease-in-out both;
+}
+@keyframes game-hop {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-22px);
+  }
+}
+@keyframes shop-fly {
+  from {
+    transform: var(--fly-from);
+    opacity: 1;
+  }
+  to {
+    transform: var(--fly-to);
+    opacity: 0.75;
+  }
+}
 @keyframes game-float {
   0%,
   100% {
@@ -409,6 +448,7 @@ body {
 }
 @media (prefers-reduced-motion: reduce) {
   .game-spark,
+  .game-hop,
   .game-pulse,
   .game-bob,
   .game-walk,

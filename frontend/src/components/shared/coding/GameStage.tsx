@@ -13,7 +13,8 @@ import type { CodeLevelKind } from './types'
 export const GAMES = {
   mouse: { kind: 'GRID', theme: 'garden' },
   doors: { kind: 'PYTHON', theme: 'temple' },
-} as const satisfies Record<string, { kind: CodeLevelKind; theme: 'garden' | 'temple' }>
+  bac: { kind: 'STORY', theme: 'quest' },
+} as const satisfies Record<string, { kind: CodeLevelKind; theme: 'garden' | 'temple' | 'quest' }>
 
 export type GameId = keyof typeof GAMES
 

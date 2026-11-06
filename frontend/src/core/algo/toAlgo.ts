@@ -229,6 +229,30 @@ export function pythonToAlgo(code: string): AlgoDraft {
       out.push(pad() + `Ecrire(${args.map(exprToAlgo).join(', ')})`)
       continue
     }
+    // Fichiers texte, comme dans le cours
+    if ((m = /^(\w+)\s*=\s*open\((.*)\)$/.exec(t))) {
+      const [name, mode = '"r"'] = splitArgs(m[2])
+      guess(m[1], 'Fichier')
+      out.push(pad() + `Ouvrir(${name}, ${m[1]}, ${mode})`)
+      continue
+    }
+    if ((m = /^(\w+)\.close\(\)$/.exec(t))) {
+      out.push(pad() + `Fermer(${m[1]})`)
+      continue
+    }
+    if ((m = /^(\w+)\.write\((.*?)\s*\+\s*["']\\n["']\)$/.exec(t))) {
+      out.push(pad() + `Ecrire_nl(${m[1]}, ${exprToAlgo(m[2])})`)
+      continue
+    }
+    if ((m = /^(\w+)\.write\((.*)\)$/.exec(t))) {
+      out.push(pad() + `Ecrire(${m[1]}, ${exprToAlgo(m[2])})`)
+      continue
+    }
+    if ((m = /^(\w+)\s*=\s*(\w+)\.(readline|read)\(\)(?:\.(?:strip|rstrip)\(.*\))?$/.exec(t))) {
+      guess(m[1], 'Chaîne')
+      out.push(pad() + `${m[3] === 'read' ? 'Lire' : 'Lire_ligne'}(${m[2]}, ${m[1]})`)
+      continue
+    }
     // x = int(input("...")) -> Ecrire("..."), Lire(x)
     if ((m = /^([\w[\]+\-* ]+?)\s*=\s*(int|float)?\(?\s*input\((.*?)\)\s*\)?$/.exec(t))) {
       const [, name, conv, prompt] = m

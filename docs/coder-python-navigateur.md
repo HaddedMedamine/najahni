@@ -1,13 +1,17 @@
 # Coder : kifech el algorithme w el Python yetexécutaw fel navigateur
 
-Hedha el fichier ychra7 el partie **Coder** mta3 Najahni. Fiha **zouz jeux**, kol wa7ed fi carte :
+Hedha el fichier ychra7 el partie **Coder** mta3 Najahni. Fiha **thletha jeux**, kol wa7ed fi carte :
 
 - **Mission Souris** : el élève yekteb Python (`avancer()`, `tourner_gauche()`, `for`, `if`, `while`) bech
   ywassel el fara l darha fi jardin. Commun lel parcours lkol.
 - **Portes du Code** : el élève yekteb **l'algorithme (notation tounsia)** wala **Python** mel programme
   mta3 9esmou. Ki el programme ykoun s7i7, el **bab** (wala el **sandou9**) yet7al.
 
-El zouz ma ya3tiw 7atta correction : **énoncé + indices** bark. El code yetexécuta **fel navigateur
+- **Aventure Bac** (Bac Info) : kol notion histoire : objectif, principe, vidéo sghira, w el scène t3awed
+  tal3eb el code mta3 el élève (chouf partie 5 bis).
+
+Mission Souris w Portes du Code ma ya3tiw 7atta correction : **énoncé + indices** bark. Fel Aventure Bac,
+ken el mission el loula fi kol chapitre mahloula. El code yetexécuta **fel navigateur
 mta3 el élève**, en temps réel.
 
 ---
@@ -182,6 +186,65 @@ Fel base (Prisma) : `CodeChapter`, `CodeLevel`, `CodeProgress` (essais, étoiles
 Kol jeu 3andou carte (`/student/coding/mouse`, `/student/coding/doors`), w les niveaux yet7allou
 wa7ed ba3d wa7ed **fi kol jeu wa7dou**. Kol niveau fih : énoncé, indices (wa7ed wa7ed), w ma fama 7atta
 algorithme wala correction m3atti. Lel Portes, kol chapitre yekmel b **sandou9** (`scene: 'chest'`).
+
+---
+
+## 5 bis. Aventure Bac (parcours Bac Info)
+
+Jeu theleth, ken lel Bac Info. Kol mission 3andha :
+
+1. **Vidéo sghira** : el scène tal3eb wa7dha w Bitou ychra7 (`story.intro`).
+2. **Objectif + principe** (`story.objective`, `story.principle`).
+3. **El code** : algorithme + TDO, wala Python.
+4. **El scène t3awed tal3eb** eli 3amlou el code mta3 el élève, ligne b ligne.
+
+**El mission loula fi kol chapitre mahloula** (`story.solved`) : el 7all w el TDO w el chroo7 mawjoudin
+wara zerr **"Voir la solution"**, barra el éditeur. El éditeur yab9a fergh, w zerr **"Faire une solution"**
+y5alli el élève yekteb. El mission hedhi dima m7loula, 7atta ken el chapitre eli 9balha ma kmalech.
+
+Fel missions el kol, el élève yekteb kol chay wa7dou : el code de départ fih ken el squelette (`ALGORITHME`, `DEBUT`, `FIN`,
+wala l'entête mta3 el module eli yet3ayetlou fel test). Mission kemlet, ki tet7al men jdid, tebda fergha.
+
+### Kifech el scène ta3ref chnouwa 3mal el code?
+
+El code yetexécuta fi Python 7a9i9i, w [harness.ts](../frontend/src/core/python/harness.ts) ysajjel kol
+3amaliya fi **trace** :
+
+| Objet | Win | Chnouwa ysajjel |
+|---|---|---|
+| `_Suivi` | Tableau el tris | Kol lecture (`get`) w kol écriture (`set`), w el ligne |
+| `_Fichier` | Fichier ta7t `open()` | `open`, `write`, `read`, `eof`, `close` |
+
+Ba3d, [trace.ts](../frontend/src/components/shared/coding/story/trace.ts) y7essb 7alet el scène, w
+[useTracePlayer.ts](../frontend/src/components/shared/coding/story/useTracePlayer.ts) yal3ebha khatwa
+khatwa. Ya3ni el animation mouch msajjla : ken el élève ghlet, el ghalta tban fel scène.
+
+- **Pingouins** ([PenguinScene.tsx](../frontend/src/components/shared/coding/story/PenguinScene.tsx)) :
+  kol pingouin case fel tableau. `T[i] ← v` yjib el pingouin `v` lel case `i`, w eli kén fiha yo5rej mel
+  saf (`aux`). Tabdil bla `aux` : pingouin yedh3a3 w yo93od barra.
+- **Sou9** ([ShopScene.tsx](../frontend/src/components/shared/coding/story/ShopScene.tsx)) : el sac howa
+  el fichier, kol produit ligne. Ki `Fin_fichier` twalli Vrai, `!` yodhhor fou9 ras el rajel.
+
+### Les fichiers fel traducteur
+
+| Algorithme | Python |
+|---|---|
+| `Ouvrir("sac.txt", F, "r")` | `F = open("sac.txt", "r")` |
+| `Lire_ligne(F, ch)` | `ch = F.readline().rstrip("\n")` |
+| `Lire(F, ch)` | `ch = F.read()` |
+| `Ecrire(F, ch)` | `F.write(ch)` |
+| `Ecrire_nl(F, ch)` | `F.write(ch + "\n")` |
+| `Fin_fichier(F)` | `Fin_fichier(F)` (fonction mta3 el harness) |
+| `Fermer(F)` | `F.close()` |
+
+El fichiers yet7attou fi disque virtuel mta3 Pyodide (`/tmp/najahni`), w yetfass5ou 9bal kol essai.
+Fel test, `files` ya3ti el fichiers mta3 el bdeya, w `closed: true` yfachel ken el programme ma sakkarch.
+
+### Kifech tzid mission
+
+Fel [content/bac.ts](../api/src/core/coding/content/bac.ts), niveau `kind: 'STORY'` b `data.story`. Le premier
+test lezem ykoun nafs el `stage` : el scène tal3eb el trace mte3ou. Scène jdida = `type` jdid fi `StoryStage`,
+composant fi `story/`, w fold fi `trace.ts`.
 
 ---
 
