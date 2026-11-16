@@ -32,6 +32,11 @@ export const useAuthStore = create<AuthState>()(
   ),
 )
 
+// Connexion, renouvellement ou deconnexion dans un autre onglet : celui-ci suit
+window.addEventListener('storage', (event) => {
+  if (event.key === 'najahni-auth' || event.key === null) void useAuthStore.persist.rehydrate()
+})
+
 /** L'utilisateur peut-il entrer dans l'espace de ce role ? (admin + profil enseignant = les deux) */
 export const canEnter = (user: Pick<Me, 'role' | 'teacher'>, role: Role) =>
   user.role === role || (role === 'TEACHER' && user.role === 'ADMIN' && user.teacher !== null)

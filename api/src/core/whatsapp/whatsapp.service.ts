@@ -11,7 +11,13 @@ import { ConfigService } from '@nestjs/config';
 import makeWASocket, {
   Browsers,
   DisconnectReason,
+  isJidBroadcast,
+  isJidGroup,
+  isJidNewsletter,
+  isPnUser,
+  normalizeMessageContent,
   useMultiFileAuthState,
+  type WAMessage,
 } from 'baileys';
 import { pino } from 'pino';
 import QRCode from 'qrcode';
@@ -33,6 +39,32 @@ export function normalizePhone(phone: string) {
   return digits.length === 8 ? `216${digits}` : digits;
 }
 
+/** Au-dela, les messages d'un meme contact ne vont plus a l'agent pendant l'heure. */
+const AGENT_MAX_PER_HOUR = 30;
+const HOUR_MS = 60 * 60 * 1000;
+
+/** Texte d'un message recu d'une personne ; null pour le reste (groupe, statut, vocal...). */
+export function inboundText(m: WAMessage) {
+  const jid = m.key.remoteJid;
+  if (!jid || m.key.fromMe || isJidGroup(jid) || isJidBroadcast(jid) || isJidNewsletter(jid)) return null;
+  // Messages ephemeres, "vue unique"... : le texte est dans une enveloppe
+  const content = normalizeMessageContent(m.message);
+  const text = content?.conversation ?? content?.extendedTextMessage?.text;
+  return text?.trim() ? { to: jid, text: text.trim() } : null;
+}
+
+const digitsOf = (jid: string) => jid.split('@')[0].split(':')[0];
+
+/**
+ * AGENT_ALLOWED_PHONES : "*" pour tout le monde, sinon les numeros separes par des virgules.
+ * Vide = personne : pendant les essais, seuls les numeros de test parlent a l'agent.
+ */
+export function agentAllows(list: string | undefined, phone: string | null) {
+  if (list?.trim() === '*') return true;
+  if (!phone) return false;
+  return (list ?? '').split(',').some((n) => n.trim() && normalizePhone(n) === phone);
+}
+
 @Injectable()
 export class WhatsappService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(WhatsappService.name);
@@ -42,11 +74,19 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
   private qr: string | null = null;
   private lastError: string | null = null;
   private stopping = false;
+  private readonly agentUrl?: string;
+  private readonly agentKey?: string;
+  private readonly agentAllowed?: string;
+  /** Messages transmis a l'agent par contact, sur l'heure en cours. */
+  private readonly agentCounts = new Map<string, { count: number; since: number }>();
 
   constructor(config: ConfigService) {
     this.sessionDir = resolve(
       config.get('WHATSAPP_SESSION_DIR') ?? '.whatsapp-session',
     );
+    this.agentUrl = config.get('AGENT_WEBHOOK_URL');
+    this.agentKey = config.get('AGENT_API_KEY');
+    this.agentAllowed = config.get('AGENT_ALLOWED_PHONES');
   }
 
   /** Reconnexion automatique au demarrage si un telephone a deja ete lie. */
@@ -100,6 +140,10 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
     this.socket = socket;
 
     socket.ev.on('creds.update', saveCreds);
+    socket.ev.on('messages.upsert', ({ messages, type }) => {
+      if (type !== 'notify' || !this.agentUrl) return;
+      for (const m of messages) void this.toAgent(m);
+    });
     socket.ev.on('connection.update', (update) => {
       if (this.socket !== socket) return;
       if (update.qr) {
@@ -151,6 +195,61 @@ export class WhatsappService implements OnModuleInit, OnModuleDestroy {
     this.state = 'DISCONNECTED';
     this.qr = null;
     this.lastError = null;
+  }
+
+  /** Transmet un message recu a l'agent (n8n). Sans AGENT_WEBHOOK_URL, rien ne part. */
+  private async toAgent(m: WAMessage) {
+    const inbound = inboundText(m);
+    if (!inbound) return;
+    const phone = await this.phoneOf(m);
+    // Les 3 derniers chiffres suffisent pour reconnaitre l'expediteur dans les journaux
+    const who = phone ? `...${phone.slice(-3)}` : 'numero inconnu';
+    if (!agentAllows(this.agentAllowed, phone)) {
+      this.logger.log(`Agent : message de ${who} ignore (hors AGENT_ALLOWED_PHONES)`);
+      return;
+    }
+    if (this.overAgentLimit(inbound.to)) {
+      this.logger.warn(`Agent : message de ${who} ignore (limite par heure)`);
+      return;
+    }
+    try {
+      const response = await fetch(this.agentUrl!, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-agent-key': this.agentKey ?? '' },
+        body: JSON.stringify({ ...inbound, phone, name: m.pushName ?? null }),
+      });
+      this.logger.log(`Agent : message de ${who} transmis (n8n ${response.status})`);
+    } catch (e) {
+      this.logger.warn(`Agent injoignable : ${(e as Error).message}`);
+    }
+  }
+
+  private overAgentLimit(jid: string) {
+    const now = Date.now();
+    const entry = this.agentCounts.get(jid);
+    if (!entry || now - entry.since > HOUR_MS) {
+      this.agentCounts.set(jid, { count: 1, since: now });
+      return false;
+    }
+    entry.count++;
+    return entry.count > AGENT_MAX_PER_HOUR;
+  }
+
+  /** WhatsApp cache parfois le numero derriere un identifiant "lid". */
+  private async phoneOf(m: WAMessage) {
+    const jid = m.key.remoteJid!;
+    const known = [m.key.remoteJidAlt, jid].find((j) => isPnUser(j));
+    if (known) return digitsOf(known);
+    const pn = await this.socket?.signalRepository.lidMapping.getPNForLID(jid);
+    return pn ? digitsOf(pn) : null;
+  }
+
+  /** Reponse de l'agent, a l'adresse recue dans le message. */
+  async reply(to: string, text: string) {
+    if (!this.socket || this.state !== 'CONNECTED') {
+      throw new Error("WhatsApp n'est pas connecte");
+    }
+    await this.socket.sendMessage(to, { text });
   }
 
   /** Envoie un message texte. Leve WhatsappRecipientError si le numero n'a pas WhatsApp. */

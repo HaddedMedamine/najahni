@@ -1,7 +1,8 @@
 // Traduction d'un algorithme (notation des programmes tunisiens) en Python executable.
 // Une ligne Python garde la ligne de l'algorithme d'ou elle vient (pour situer les erreurs).
-import { callsIn, type Expr, ExprError, type Imports, namesIn, parseExpr, PREDEFINED, toPython } from './expr.ts'
+import { callsIn, type Expr, ExprError, fieldsIn, type Imports, namesIn, parseExpr, PREDEFINED, toPython } from './expr.ts'
 import { type Token, tokenizeLine } from './tokens.ts'
+import { type DeclaredType, isBaseType, parseTypes, typeName } from './types.ts'
 
 export type TdoType = 'Entier' | 'Réel' | 'Booléen' | 'Caractère' | 'Chaîne' | 'Tableau' | 'Fichier'
 export type ElementType = Exclude<TdoType, 'Tableau' | 'Fichier'>
@@ -9,10 +10,13 @@ export type ElementType = Exclude<TdoType, 'Tableau' | 'Fichier'>
 /** Une ligne du tableau de declaration des objets. */
 export interface TdoRow {
   name: string
-  type: TdoType
+  /** Type du programme, ou nouveau type declare dans le bloc Type. */
+  type: TdoType | (string & {})
   /** Tableau : type des elements et taille. */
-  elem?: ElementType
+  elem?: ElementType | (string & {})
   size?: number
+  /** Matrice : nombre de colonnes (`size` = nombre de lignes). */
+  cols?: number
 }
 
 export interface AlgoError {
@@ -62,8 +66,20 @@ interface Block {
 
 const SPLIT_BEFORE = new Set(['sinonsi', 'sinon', 'finsi', 'finpour', 'fintantque', 'jusqua', 'repeter'])
 const SPLIT_AFTER = new Set(['alors', 'faire', 'repeter', 'debut'])
+const BEFORE_EXPRESSION = new Set(['de', 'a', 'retourner', 'non', 'et', 'ou', 'div', 'mod', 'si', 'sinonsi', 'tantque', 'jusqua'])
 const SCALAR_TYPES = new Set(['entier', 'reel', 'booleen', 'caractere', 'chaine'])
-const FILE_MODES = new Set(['r', 'w', 'a'])
+const FILE_MODES = new Set(['r', 'w', 'a', 'rb', 'wb', 'ab'])
+
+/** « fin » et « debut » sont aussi des noms de variables courants : fin ← mil, T[debut]. */
+function isVariableWord(tokens: Token[], i: number) {
+  const t = tokens[i]
+  if (t.kind !== 'id' || (t.key !== 'fin' && t.key !== 'debut')) return false
+  const before = tokens[i - 1]
+  const after = tokens[i + 1]
+  if (after?.kind === 'op' && after.key !== '(') return true
+  if (before?.kind === 'op') return before.key !== ')' && before.key !== ']'
+  return before?.kind === 'id' && BEFORE_EXPRESSION.has(before.key)
+}
 
 /** Une instruction par element : "Si x > 0 Alors Ecrire(x) FinSi" -> 3 instructions. */
 function splitStatements(source: string, errors: AlgoError[]): Statement[] {
@@ -84,6 +100,7 @@ function splitStatements(source: string, errors: AlgoError[]): Statement[] {
       current = []
     }
     tokens.forEach((t, i) => {
+      t.variable = isVariableWord(tokens, i)
       if (t.kind === 'op' && (t.key === '(' || t.key === '[')) depth++
       if (t.kind === 'op' && (t.key === ')' || t.key === ']')) depth--
       if (t.kind === 'id' && SPLIT_BEFORE.has(t.key)) flush()
@@ -95,7 +112,7 @@ function splitStatements(source: string, errors: AlgoError[]): Statement[] {
       }
       current.push(t)
       const bareSinon = t.key === 'sinon' && t.kind === 'id'
-      if (t.kind === 'id' && (SPLIT_AFTER.has(t.key) || bareSinon)) flush()
+      if (t.kind === 'id' && !t.variable && (SPLIT_AFTER.has(t.key) || bareSinon)) flush()
     })
     flush()
   })
@@ -116,10 +133,12 @@ const findOp = (tokens: Token[], key: string, from = 0) => {
 const isKey = (t: Token | undefined, key: string) => t !== undefined && t.kind === 'id' && t.key === key
 
 export function transpile(source: string, tdo: TdoRow[] | null): Transpiled {
-  const errors: AlgoError[] = []
-  const statements = splitStatements(source, errors)
+  const declared = parseTypes(source)
+  const { types } = declared
+  const errors: AlgoError[] = [...declared.errors]
+  const statements = splitStatements(declared.source, errors)
   const modules: Module[] = []
-  const imports: Imports = { math: false, random: false }
+  const imports: Imports = { math: false, random: false, pickle: false }
   const tdoByKey = new Map((tdo ?? []).map((row) => [row.name.trim().toLowerCase(), row]))
 
   let mod: Module | null = null
@@ -156,6 +175,14 @@ export function transpile(source: string, tdo: TdoRow[] | null): Transpiled {
   }
   const noteReads = (e: Expr, line: number) => {
     const m = current(line)
+    // Un dict accepte n'importe quelle cle : le champ doit exister dans le type
+    for (const field of fieldsIn(e)) {
+      const record = typeOf(field.target)
+      const custom = record && types.get(record.type.toLowerCase())
+      if (custom?.kind === 'record' && !custom.fields.some((f) => f.name === field.name)) {
+        errors.push({ line, message: `Le champ « ${field.name} » n'existe pas dans ${custom.name}` })
+      }
+    }
     for (const [key, name] of namesIn(e)) {
       if (!m.read.has(key)) m.read.set(key, { name, line })
       if (!m.firstUse.has(key)) m.firstUse.set(key, 'read')
@@ -166,7 +193,8 @@ export function transpile(source: string, tdo: TdoRow[] | null): Transpiled {
     const m = current(line)
     const key = name.toLowerCase()
     if (!m.assigned.has(key)) m.assigned.set(key, { name, line })
-    if (!m.firstUse.has(key)) m.firstUse.set(key, 'write')
+    // Ecrit seulement dans un Si ou un Pour : la valeur recue peut rester la bonne
+    if (!m.firstUse.has(key)) m.firstUse.set(key, blocks.every((b) => b.kind === 'repeter') ? 'write' : 'read')
   }
   /** Cible d'une affectation ou d'une lecture : x ou T[i]. */
   const target = (tokens: Token[], line: number) => {
@@ -176,17 +204,45 @@ export function transpile(source: string, tdo: TdoRow[] | null): Transpiled {
     }
     const name = tokens[0].raw
     noteAssign(name, line)
-    if (tokens.length === 1) return { name, python: name, indexed: false }
-    if (tokens[1].key !== '[' || tokens.at(-1)?.key !== ']') {
+    const variable: Expr = { type: 'name', name, key: tokens[0].key }
+    if (tokens.length === 1) return { name, python: name, expr: variable }
+    try {
+      const e = parseExpr(tokens)
+      if (e.type !== 'index' && e.type !== 'field') throw new ExprError('')
+      noteReads(e, line)
+      return { name, python: toPython(e, imports), expr: e }
+    } catch {
       errors.push({ line, message: `Variable attendue a la place de « ${tokens.map((t) => t.raw).join(' ')} »` })
       return null
     }
-    const index = expr(tokens.slice(2, -1), line)
-    return index === null ? null : { name, python: `${name}[${index}]`, indexed: true }
+  }
+  /** Type d'une variable, d'une case de tableau ou d'un champ (pour Lire). */
+  const typeOf = (e: Expr): { type: string; elem?: string; cols?: number } | null => {
+    if (e.type === 'name') {
+      const param = mod?.params.find((p) => p.name.toLowerCase() === e.key)
+      const known = param && (types.has(param.type) || isBaseType(typeName(param.type)))
+      if (param && known) return { type: typeName(types.get(param.type)?.name ?? param.type) }
+      return tdoByKey.get(e.key) ?? null
+    }
+    const base = e.type === 'index' || e.type === 'field' ? typeOf(e.target) : null
+    if (!base) return null
+    const custom = types.get(base.type.toLowerCase())
+    if (e.type === 'field') {
+      const field = custom?.kind === 'record' ? custom.fields.find((f) => f.name === e.name) : undefined
+      return field ? { type: field.type } : null
+    }
+    if (base.type === 'Tableau' && 'cols' in base && base.cols) return { type: 'Tableau', elem: base.elem }
+    if (base.type === 'Tableau') return { type: base.elem ?? 'Entier' }
+    if (custom?.kind === 'array') return { type: custom.elem }
+    if (custom?.kind === 'matrix') return { type: 'Tableau', elem: custom.elem }
+    return null
   }
   const signatures = new Map<string, Param[]>()
   // Noms logiques des fichiers : declares dans le TDO, ouverts ou recus en parametre
-  const files = new Set((tdo ?? []).filter((row) => row.type === 'Fichier').map((row) => row.name.trim().toLowerCase()))
+  // Fichiers de donnees (binaires) : ouverts en "rb", "wb" ou "ab"
+  const binary = new Set<string>()
+  const isFileType = (type: string) => type === 'Fichier' || types.get(type.toLowerCase())?.kind === 'file'
+  const files = new Set((tdo ?? []).filter((row) => isFileType(row.type)).map((row) => row.name.trim().toLowerCase()))
 
   // Premier passage : signatures des modules (un appel peut preceder la definition)
   for (const s of statements) {
@@ -197,15 +253,21 @@ export function transpile(source: string, tdo: TdoRow[] | null): Transpiled {
       for (const p of sig?.params ?? []) if (p.type === 'fichier') files.add(p.name.toLowerCase())
     }
     if (isKey(head, 'ouvrir')) {
-      const logical = callArgs(s.tokens, s.line, [])?.[1]
-      if (logical?.length === 1) files.add(logical[0].key)
+      const args = callArgs(s.tokens, s.line, [])
+      const logical = args?.[1]
+      if (logical?.length === 1) {
+        files.add(logical[0].key)
+        if (args?.[2]?.[0]?.raw.endsWith('b')) binary.add(logical[0].key)
+      }
     }
   }
   const isFile = (tokens: Token[] | undefined) => tokens?.length === 1 && tokens[0].kind === 'id' && files.has(tokens[0].key)
 
+  unifyNames(statements, tdo)
+
   for (const s of statements) {
     const [head] = s.tokens
-    const key = head.kind === 'id' ? head.key : ''
+    const key = head.kind === 'id' && !head.variable ? head.key : ''
     const line = s.line
     const rest = s.tokens.slice(1)
     const promptBefore = lastPrompt
@@ -319,7 +381,7 @@ export function transpile(source: string, tdo: TdoRow[] | null): Transpiled {
         }
         const mode = args[2].length === 1 && args[2][0].kind === 'str' ? args[2][0].raw : ''
         if (!FILE_MODES.has(mode)) {
-          errors.push({ line, message: 'Mode d\'ouverture attendu : "r", "w" ou "a"' })
+          errors.push({ line, message: 'Mode d\'ouverture attendu : "r", "w", "a", "rb", "wb" ou "ab"' })
           continue
         }
         const name = expr(args[0], line)
@@ -359,15 +421,14 @@ export function transpile(source: string, tdo: TdoRow[] | null): Transpiled {
           }
           const file = expr(args[0], line)
           const t = target(args[1], line)
-          if (t) emit(`${t.python} = ${file}.read()`, line)
+          if (binary.has(args[0][0].key)) imports.pickle = true
+          if (t) emit(`${t.python} = ${binary.has(args[0][0].key) ? `load(${file})` : `${file}.read()`}`, line)
           continue
         }
         for (const arg of args ?? []) {
           const t = target(arg, line)
           if (!t) continue
-          const row = tdoByKey.get(t.name.toLowerCase())
-          const param = mod?.params.find((p) => p.name.toLowerCase() === t.name.toLowerCase())
-          const type = param && !t.indexed ? paramType(param.type) : row?.type === 'Tableau' ? (row.elem ?? 'Entier') : (row?.type ?? 'Chaîne')
+          const type = typeOf(t.expr)?.type ?? 'Chaîne'
           // Ecrire("Donner n : "), Lire(n) -> n = int(input("Donner n : "))
           let prompt = ''
           if (promptBefore && promptBefore.line === line && args?.length === 1) {
@@ -392,6 +453,12 @@ export function transpile(source: string, tdo: TdoRow[] | null): Transpiled {
           }
           const file = expr(args[0], line)
           const value = expr(args[1], line)
+          if (binary.has(args[0][0].key)) {
+            imports.pickle = true
+            if (key === 'ecrire_nl') errors.push({ line, message: 'Ecrire_nl est pour les fichiers texte : utilisez Ecrire(F, x)' })
+            else if (value !== null) emit(`dump(${value}, ${file})`, line)
+            continue
+          }
           if (value !== null) emit(`${file}.write(${value}${key === 'ecrire_nl' ? ' + "\\n"' : ''})`, line)
           continue
         }
@@ -408,8 +475,9 @@ export function transpile(source: string, tdo: TdoRow[] | null): Transpiled {
     // Affectation : cible ← expression
     const arrow = findOp(s.tokens, '←')
     if (arrow > 0) {
-      const t = target(s.tokens.slice(0, arrow), line)
+      // La valeur d'abord : dans x ← x + 1, x est lu avant d'etre ecrit
       const value = expr(s.tokens.slice(arrow + 1), line)
+      const t = target(s.tokens.slice(0, arrow), line)
       if (t && value !== null) emit(`${t.python} = ${value}`, line)
       continue
     }
@@ -433,10 +501,15 @@ export function transpile(source: string, tdo: TdoRow[] | null): Transpiled {
         }
       })
       const refs = params.flatMap((p, i) => (p.ref && SCALAR_TYPES.has(p.type) && args[i] ? [args[i]] : []))
+      // Variable encore sans valeur : Python ne peut pas la passer au module
+      const caller = current(line)
+      const unset = new Set(
+        refs.filter((r) => /^\w+$/.test(r) && !caller.assigned.has(r.toLowerCase()) && !caller.params.some((p) => p.name.toLowerCase() === r.toLowerCase())),
+      )
       for (const r of refs) noteAssign(r.replace(/\[.*$/, ''), line)
       emit(call, line, 0, () => {
         const target = modules.find((m) => m.name.toLowerCase() === name.toLowerCase())
-        const kept = params.flatMap((p, i) => (target && dropped(target, p) ? [] : [args[i] ?? '']))
+        const kept = params.flatMap((p, i) => (target && dropped(target, p) ? [] : [unset.has(args[i]) ? 'None' : (args[i] ?? '')]))
         const text = `${name}(${kept.join(', ')})`
         return refs.length ? `${refs.join(', ')} = ${text}` : text
       })
@@ -454,19 +527,24 @@ export function transpile(source: string, tdo: TdoRow[] | null): Transpiled {
   }
   if (mod && mod.kind === 'procedure') returnRefs(mod, null)
 
-  if (tdo) checkTdo(modules, tdoByKey, signatures, errors)
+  if (tdo) {
+    checkTdo(modules, tdoByKey, signatures, errors)
+    for (const row of tdo) {
+      for (const type of [row.type, row.elem]) {
+        if (type && !KNOWN_TYPES.has(type) && !types.has(type.toLowerCase())) {
+          errors.push({ line: null, message: `Le type « ${type} » de ${row.name} n'est pas declare dans le bloc Type` })
+        }
+      }
+    }
+  }
 
-  return { ...assemble(modules, tdo ?? [], imports), errors }
+  return { ...assemble(modules, tdo ?? [], imports, types), errors }
 }
 
-/** Type d'un parametre ("entier", "reel"...) -> type du TDO. */
-function paramType(type: string): TdoType {
-  const types: Record<string, TdoType> = { entier: 'Entier', reel: 'Réel', booleen: 'Booléen', caractere: 'Caractère', chaine: 'Chaîne' }
-  return types[type] ?? 'Chaîne'
-}
+const KNOWN_TYPES = new Set<string>(['Entier', 'Réel', 'Booléen', 'Caractère', 'Chaîne', 'Tableau', 'Fichier'])
 
 /** `Lire(x)` selon le type declare dans le TDO. */
-function readAs(type: TdoType, prompt: string) {
+function readAs(type: string, prompt: string) {
   if (type === 'Entier') return `int(input(${prompt}))`
   if (type === 'Réel') return `float(input(${prompt}))`
   if (type === 'Booléen') return `input(${prompt}) == "Vrai"`
@@ -511,6 +589,30 @@ function callArgs(tokens: Token[], line: number, errors: AlgoError[]): Token[][]
   }
   if (cur.length) args.push(cur)
   return args
+}
+
+/** L'algorithme ne distingue pas t et T, Python si : chaque nom reprend l'ecriture de sa declaration. */
+function unifyNames(statements: Statement[], tdo: TdoRow[] | null) {
+  const isHeader = (t: Token | undefined) => isKey(t, 'fonction') || isKey(t, 'procedure')
+  const globals = new Map((tdo ?? []).map((row) => [row.name.trim().toLowerCase(), row.name.trim()]))
+  for (const s of statements) {
+    if (!isHeader(s.tokens[0])) continue
+    const name = parseSignature(s.tokens, s.line, [])?.name
+    if (name) globals.set(name.toLowerCase(), name)
+  }
+  let params = new Map<string, string>()
+  for (const s of statements) {
+    const [head] = s.tokens
+    if (isHeader(head)) {
+      params = new Map(parseSignature(s.tokens, s.line, [])?.params.map((p) => [p.name.toLowerCase(), p.name]))
+    } else if (isKey(head, 'fin') && !head.variable) params = new Map()
+    s.tokens.forEach((t, i) => {
+      // x.Nom est un champ d'enregistrement, pas une variable
+      if (t.kind !== 'id' || s.tokens[i - 1]?.raw === '.') return
+      const key = t.raw.toLowerCase()
+      t.raw = params.get(key) ?? globals.get(key) ?? t.raw
+    })
+  }
 }
 
 /** Fonction nom(a : Entier, @T : Tab) : Entier */
@@ -629,13 +731,47 @@ function checkTdo(
   }
 }
 
+const INIT: Record<string, string> = { Entier: 'int()', Réel: 'float()', Booléen: 'bool()', Caractère: 'str()', Chaîne: 'str()' }
+
+/** Valeur de depart d'un type ; un enregistrement devient un dictionnaire, comme dans le cours. */
+function initOf(type: string, types: Map<string, DeclaredType>): string {
+  const custom = types.get(type.toLowerCase())
+  if (custom?.kind !== 'record') return INIT[type] ?? 'None'
+  return `dict(${custom.fields.map((f) => `${f.name}=${initOf(f.type, types)}`).join(', ')})`
+}
+
+/** Ligne Python qui cree un objet du TDO (les objets simples n'en ont pas besoin). */
+function declaration(row: TdoRow, types: Map<string, DeclaredType>): string[] {
+  const custom = types.get(row.type.toLowerCase())
+  const textual = (elem: string) => (elem === 'Chaîne' || elem === 'Caractère' ? ', dtype=object' : '')
+  const array = (size: number, elem: string) => {
+    const init = initOf(elem, types)
+    // Un dictionnaire par case : [dict()] * n les partagerait toutes
+    if (init.startsWith('dict(')) return `${row.name} = array([${init} for i in range(${size})])`
+    return `${row.name} = array([${init}] * ${size}${textual(elem)})`
+  }
+  if (row.type === 'Tableau' && row.cols) {
+    const elem = row.elem ?? 'Entier'
+    return [`${row.name} = array([[${initOf(elem, types)}] * ${row.cols}] * ${row.size ?? 10}${textual(elem)})`]
+  }
+  if (row.type === 'Tableau') return [array(row.size ?? 100, row.elem ?? 'Entier')]
+  if (custom?.kind === 'array') return [array(custom.size, custom.elem)]
+  if (custom?.kind === 'matrix') {
+    const { rows, cols, elem } = custom
+    return [`${row.name} = array([[${initOf(elem, types)}] * ${cols}] * ${rows}${textual(elem)})`]
+  }
+  if (custom?.kind === 'record') return [`${row.name} = ${initOf(custom.name, types)}`]
+  return []
+}
+
 /** Code Python final : imports, modules, puis programme principal. */
-function assemble(modules: Module[], tdo: TdoRow[], imports: Imports) {
+function assemble(modules: Module[], tdo: TdoRow[], imports: Imports, types: Map<string, DeclaredType>) {
   const out: { text: string; line: number | null }[] = []
-  const arrays = tdo.filter((row) => row.type === 'Tableau')
-  if (arrays.length) out.push({ text: 'from numpy import *', line: null })
+  const declarations = tdo.flatMap((row) => declaration(row, types))
+  if (declarations.some((d) => d.includes('array('))) out.push({ text: 'from numpy import *', line: null })
   if (imports.math) out.push({ text: 'from math import *', line: null })
   if (imports.random) out.push({ text: 'from random import *', line: null })
+  if (imports.pickle) out.push({ text: 'from pickle import *', line: null })
   if (out.length) out.push({ text: '', line: null })
 
   const pad = (n: number) => '    '.repeat(n)
@@ -650,12 +786,7 @@ function assemble(modules: Module[], tdo: TdoRow[], imports: Imports) {
     out.push({ text: '', line: null }, { text: '', line: null })
   }
 
-  const init = { Entier: 'int()', Réel: 'float()', Booléen: 'bool()', Caractère: 'str()', Chaîne: 'str()' }
-  for (const row of arrays) {
-    const elem = row.elem ?? 'Entier'
-    const dtype = elem === 'Chaîne' || elem === 'Caractère' ? ', dtype=object' : ''
-    out.push({ text: `${row.name} = array([${init[elem]}] * ${row.size ?? 100}${dtype})`, line: null })
-  }
+  for (const text of declarations) out.push({ text, line: null })
   for (const m of modules.filter((x) => x.kind === 'main')) {
     for (const l of m.lines) out.push({ text: pad(l.indent) + (l.render?.() ?? l.text), line: l.line })
   }

@@ -28,6 +28,10 @@ export const formatDate =(iso: string | null | undefined) =>
       )
     : '—'
 
+/** "06/11", jour puis mois dans les deux langues (a afficher avec dir="ltr"). */
+export const formatDay = (iso: string) =>
+  new Intl.DateTimeFormat('fr-TN', { day: '2-digit', month: '2-digit' }).format(new Date(iso))
+
 export const formatTime = (iso: string) =>
   new Intl.DateTimeFormat(locale(), { timeStyle: 'short', hourCycle: 'h23' }).format(
     new Date(iso),

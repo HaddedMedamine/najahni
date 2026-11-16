@@ -38,6 +38,10 @@ interface Folds {
     start: Record<string, string[]>,
     events: TraceEvent[],
   ): { bags: { name: string; items: string[]; mode: string | null }[] };
+  foldCards(events: TraceEvent[]): {
+    cards: { fields: Record<string, unknown> }[];
+  };
+  foldCinema(rows: number[][], events: TraceEvent[]): number[][];
   isSorted(array: number[], target: 'asc' | 'desc'): boolean;
 }
 
@@ -231,9 +235,18 @@ describe('contenu Coder', () => {
             const end = folds.foldPenguins(stage.values, trace);
             expect(folds.isSorted(end.array, stage.target)).toBe(true);
             expect(end.place).not.toContain(null);
-          } else {
-            const end = folds.foldShop(stage.bags, trace);
+          } else if (stage.type === 'shop' || stage.type === 'archive') {
+            const start = stage.type === 'shop' ? stage.bags : stage.drawers;
+            const end = folds.foldShop(start, trace);
             expect(end.bags.every((b) => b.mode === null)).toBe(true);
+          } else if (stage.type === 'cards') {
+            // Chaque carte du premier test se remplit, avec les champs du decor
+            const { cards } = folds.foldCards(trace);
+            expect(cards).toHaveLength(stage.count);
+            for (const card of cards)
+              expect(Object.keys(card.fields).sort()).toEqual(
+                [...stage.fields].sort(),
+              );
           }
         }
       },
@@ -251,7 +264,14 @@ describe('contenu Coder', () => {
           const end = folds.foldPenguins(stage.values, intro);
           expect(folds.isSorted(end.array, stage.target)).toBe(true);
           expect(end.place).not.toContain(null);
-        } else {
+        } else if (stage.type === 'cinema') {
+          expect(tests[0].setup).toContain(JSON.stringify(stage.rows));
+          expect(folds.foldCinema(stage.rows, intro)).toHaveLength(
+            stage.rows.length,
+          );
+        } else if (stage.type === 'cards') {
+          expect(folds.foldCards(intro).cards.length).toBe(stage.count);
+        } else if (stage.type === 'shop') {
           const files = tests[0].files ?? {};
           for (const [name, items] of Object.entries(stage.bags))
             expect((files[name] ?? '').split('\n').filter(Boolean)).toEqual(

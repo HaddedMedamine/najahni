@@ -14,8 +14,6 @@ import {
   ValidateNested,
 } from 'class-validator';
 
-const TYPES = ['Entier', 'Réel', 'Booléen', 'Caractère', 'Chaîne'] as const;
-
 /** Ligne du TDO envoyee avec un algorithme. */
 export class TdoRowDto {
   @ApiProperty()
@@ -23,14 +21,17 @@ export class TdoRowDto {
   @MaxLength(40)
   name: string;
 
-  @ApiProperty({ enum: [...TYPES, 'Tableau', 'Fichier'] })
-  @IsIn([...TYPES, 'Tableau', 'Fichier'])
-  type: (typeof TYPES)[number] | 'Tableau' | 'Fichier';
+  /** Type du programme, ou nouveau type declare par l'eleve dans le bloc Type. */
+  @ApiProperty()
+  @IsString()
+  @MaxLength(40)
+  type: string;
 
-  @ApiPropertyOptional({ enum: TYPES })
+  @ApiPropertyOptional()
   @IsOptional()
-  @IsIn(TYPES)
-  elem?: (typeof TYPES)[number];
+  @IsString()
+  @MaxLength(40)
+  elem?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -38,6 +39,14 @@ export class TdoRowDto {
   @Min(1)
   @Max(1000)
   size?: number;
+
+  /** Matrice : nombre de colonnes (`size` = nombre de lignes). */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(1000)
+  cols?: number;
 }
 
 export class CodeAttemptDto {

@@ -153,6 +153,19 @@ export interface GroupPayments {
   rows: StudentSeries[]
 }
 
+/** Dates de presence des eleves d'un groupe, payees ou non. */
+export interface GroupSheet {
+  group: { id: string; name: string; subject: string; monthlySessions: number }
+  month: string | null
+  /** Mois ou le groupe a des presences ("AAAA-MM"), du plus ancien au plus recent */
+  months: string[]
+  rows: {
+    student: { id: string; user: PersonName }
+    left: boolean
+    presences: { sessionId: string; startsAt: string; series: number; paid: boolean }[]
+  }[]
+}
+
 export interface StudentPayments {
   groups: (StudentSeries & { group: { id: string; name: string; subject: string } })[]
   history: {

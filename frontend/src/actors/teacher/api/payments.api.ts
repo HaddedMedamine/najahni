@@ -1,6 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/core/api/client'
-import type { Earnings, GroupPayments, PaymentsOverview } from '@/core/api/types'
+import type { Earnings, GroupPayments, GroupSheet, PaymentsOverview } from '@/core/api/types'
 
 const KEY = ['teacher', 'payments'] as const
 
@@ -24,19 +24,29 @@ export const useTeacherGroupPayments = (groupId: string) =>
     queryFn: () => api.get<GroupPayments>(`/teacher/payments/groups/${groupId}`).then((r) => r.data),
   })
 
+/** month = "AAAA-MM", absent = depuis le debut */
+export const useTeacherGroupSheet = (groupId: string, month?: string) =>
+  useQuery({
+    queryKey: [...KEY, 'sheet', groupId, month],
+    queryFn: () => api.get<GroupSheet>(`/teacher/payments/groups/${groupId}/sheet`, { params: { month } }).then((r) => r.data),
+    enabled: Boolean(groupId),
+    // Changer de mois garde la liste a l'ecran ; changer de groupe non
+    placeholderData: (previous) => (previous?.group.id === groupId ? previous : undefined),
+  })
+
 export interface TogglePayment {
   groupId: string
   studentId: string
-  /** true = l'eleve paie ; false = annuler son dernier paiement */
-  paid: boolean
+  /** Serie que l'eleve paie ; null = annuler son dernier paiement */
+  series: number | null
 }
 
 export function useTeacherTogglePayment() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ groupId, studentId, paid }: TogglePayment) => {
+    mutationFn: ({ groupId, studentId, series }: TogglePayment) => {
       const url = `/teacher/payments/groups/${groupId}/students/${studentId}/pay`
-      return (paid ? api.post(url) : api.delete(url)).then((r) => r.data as { changed: boolean; number: number | null })
+      return (series !== null ? api.post(url, { series }) : api.delete(url)).then((r) => r.data as { changed: boolean; number: number | null })
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: KEY }),
   })

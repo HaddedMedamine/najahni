@@ -180,6 +180,11 @@ body {
 .fc-list-event.fc-status-cancelled {
   background: transparent !important;
 }
+/* En-tete cache de la liste : place a -10000px, il elargit la page en arabe */
+.fc .fc-list-table thead {
+  display: none;
+}
+
 .fc-theme-standard .fc-list-day-cushion {
   background: var(--muted);
 }

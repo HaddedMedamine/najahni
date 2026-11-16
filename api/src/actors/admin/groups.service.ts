@@ -156,6 +156,28 @@ export class GroupsService {
         );
       }
     }
+    if (dto.monthlySessions !== undefined) {
+      const group = await this.prisma.group.findUniqueOrThrow({
+        where: { id },
+        select: {
+          monthlySessions: true,
+          _count: {
+            select: {
+              sessions: { where: { status: 'DONE' } },
+              installments: true,
+            },
+          },
+        },
+      });
+      const started = group._count.sessions > 0 || group._count.installments > 0;
+      // Les series sont recalculees avec cette valeur : en changer creerait de fausses dettes
+      if (started && dto.monthlySessions !== group.monthlySessions) {
+        throw fieldError(
+          'monthlySessions',
+          'Ce groupe a deja des seances ou des paiements : ce nombre ne peut plus changer',
+        );
+      }
+    }
     await this.prisma.group.update({ where: { id }, data: dto });
     await this.audit.log({
       actorId,

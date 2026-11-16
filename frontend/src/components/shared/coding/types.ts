@@ -27,6 +27,13 @@ export interface DoorData {
 export type StoryStage =
   | { type: 'penguins'; values: number[]; target: 'asc' | 'desc' }
   | { type: 'shop'; bags: Record<string, string[]> }
+  | { type: 'cards'; title: string; fields: string[]; count: number }
+  | { type: 'cinema'; rows: number[][]; mode: 'seats' | 'numbers' }
+  | { type: 'archive'; drawers: Record<string, string[]> }
+  | { type: 'dolls' }
+  | { type: 'stairs'; length: number }
+  | { type: 'machine'; vars: string[] }
+  | { type: 'target'; variable: string; exact: number; min: number; max: number }
 
 /** Aventure Bac : une porte, avec objectif, principe et animation. */
 export interface StoryData extends DoorData {

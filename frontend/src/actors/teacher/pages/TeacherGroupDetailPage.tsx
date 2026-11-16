@@ -1,4 +1,5 @@
-import { ArrowLeft, Users } from 'lucide-react'
+import { ArrowLeft, ClipboardList, Users } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useParams } from 'react-router-dom'
 import { Avatar } from '@/components/shared/Misc'
@@ -8,12 +9,14 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Table, TBody, TD, TH, THead, TR } from '@/components/ui/table'
 import { fullName } from '@/core/lib/utils'
-import { useMyGroup } from '../api/teacher.api'
+import { type TeacherGroupDetail, useMyGroup } from '../api/teacher.api'
+import { StudentSheetDialog } from '../components/StudentSheetDialog'
 
 export function TeacherGroupDetailPage() {
   const { id = '' } = useParams()
   const { t } = useTranslation()
   const { data: group, isLoading, isError, refetch } = useMyGroup(id)
+  const [selected, setSelected] = useState<TeacherGroupDetail['students'][number]['student'] | null>(null)
 
   if (isLoading) return <TableSkeleton rows={6} />
   if (isError || !group) return <ErrorState onRetry={refetch} />
@@ -29,6 +32,14 @@ export function TeacherGroupDetailPage() {
       <PageHeader
         title={group.name}
         description={`${group.subject} · ${group.level} ${group.section} · ${t('teacher.studentsCount', { count: group.students.length })}`}
+        actions={
+          <Button variant="outline" asChild>
+            <Link to={`/teacher/groups/${id}/sheet`}>
+              <ClipboardList />
+              {t('sheet.wholeGroup')}
+            </Link>
+          </Button>
+        }
       />
       <Card>
         {group.students.length === 0 ? (
@@ -44,13 +55,13 @@ export function TeacherGroupDetailPage() {
             </THead>
             <TBody>
               {group.students.map(({ student }, index) => (
-                <TR key={student.id}>
+                <TR key={student.id} className="cursor-pointer" onClick={() => setSelected(student)}>
                   <TD className="text-muted-foreground tabular-nums">{index + 1}</TD>
                   <TD>
-                    <div className="flex items-center gap-3">
+                    <button type="button" className="flex items-center gap-3 text-start hover:text-primary">
                       <Avatar user={student.user} />
                       <span className="font-medium">{fullName(student.user)}</span>
-                    </div>
+                    </button>
                   </TD>
                   <TD>
                     {student.level} · {student.section}
@@ -61,6 +72,7 @@ export function TeacherGroupDetailPage() {
           </Table>
         )}
       </Card>
+      {selected && <StudentSheetDialog groupId={id} student={selected} onClose={() => setSelected(null)} />}
     </>
   )
 }

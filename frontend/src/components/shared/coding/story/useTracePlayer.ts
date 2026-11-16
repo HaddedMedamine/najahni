@@ -6,6 +6,13 @@ import { stepEnds } from './trace'
 const SOUNDS: Partial<Record<TraceEvent['t'], Parameters<typeof sfx>[0]>> = {
   get: 'step',
   set: 'hop',
+  field: 'drop',
+  look: 'step',
+  mget: 'step',
+  mset: 'hop',
+  call: 'hop',
+  ret: 'drop',
+  var: 'step',
   open: 'open',
   write: 'drop',
   read: 'pick',

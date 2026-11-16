@@ -14,6 +14,8 @@ import { type AuthUser, CurrentUser, Public } from '../core/auth/decorators.js';
 
 // Endpoints sensibles : 5 tentatives par minute et par IP
 const STRICT_THROTTLE = { default: { limit: 5, ttl: 60_000 } };
+// Toute une classe se connecte depuis la meme IP ; chaque compte reste limite (throttling.ts)
+const LOGIN_THROTTLE = { default: { limit: 30, ttl: 60_000 } };
 
 const metaOf = (req: Request): RequestMeta => ({
   ip: req.ip,
@@ -26,7 +28,7 @@ export class AuthController {
   constructor(private readonly auth: AuthService) {}
 
   @Public()
-  @Throttle(STRICT_THROTTLE)
+  @Throttle(LOGIN_THROTTLE)
   @Post('login')
   @HttpCode(200)
   login(@Body() dto: LoginDto, @Req() req: Request) {
@@ -52,7 +54,7 @@ export class AuthController {
   @Post('forgot-password')
   @HttpCode(204)
   forgotPassword(@Body() dto: ForgotPasswordDto, @Req() req: Request) {
-    return this.auth.forgotPassword(dto.identifier, metaOf(req));
+    this.auth.requestPasswordReset(dto.identifier, metaOf(req));
   }
 
   @Public()

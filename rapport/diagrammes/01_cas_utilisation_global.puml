@@ -1,0 +1,121 @@
+@startuml Cas_utilisation_global
+left to right direction
+skinparam usecase {
+  BackgroundColor #B5DEE1
+  BorderColor #3D7F86
+}
+skinparam actorBorderColor #3D7F86
+skinparam rectangleBorderColor #3D7F86
+
+actor "Administrateur" as admin
+actor "Enseignant" as teach
+actor "Élève" as student
+actor "Parent" as parent
+actor "Contact WhatsApp" as contact
+rectangle "Agent IA conversationnel (n8n)" as bot
+rectangle "Système IA pour correction" as ia
+rectangle "Agent de notification" as agent
+usecase "Gérer les comptes" as comptes
+usecase "Gérer les salles" as salles
+usecase "Consulter le tableau\nde bord" as dash
+usecase "Gérer la connexion\nWhatsApp" as wa
+usecase "Traiter les rappels\net les commandes" as leads
+usecase "Gérer la demande de\npériode de révision" as demande
+usecase "Gestion des élèves" as eleves
+usecase "Gestion des groupes" as groupes
+usecase "Planning" as planning
+usecase "Gestion des séances" as seances
+usecase "Consulter les revenus" as revenus
+usecase "Suivre la progression\nCoder" as cfollow
+usecase "Demander une période\nde révision" as demper
+usecase "Soumettre un exercice\nou un document" as exo
+usecase "Soumettre une vidéo" as video
+usecase "Valider la correction" as valid
+usecase "Réinitialiser le\nmot de passe" as reset
+usecase "Gestion des paiements" as pay
+usecase "Suivi de la séance" as suivi
+usecase "Voir la liste\ndes exercices" as listexo
+usecase "Réaliser et soumettre\nun exercice" as submit
+usecase "Jouer aux jeux\nCoder" as game
+usecase "Suivi de l'enfant" as child
+usecase "Poser une question\nau centre" as ask
+usecase "Demander un rappel" as call
+usecase "Commander un livre" as book
+usecase "Gestion des périodes\nde révision" as gper
+usecase "Corriger l'exercice" as corr
+usecase "Envoyer des\nnotifications" as notif
+usecase "S'authentifier" as auth
+
+admin -- comptes
+admin -- salles
+admin -- dash
+admin -- wa
+admin -- leads
+admin -- demande
+admin -- eleves
+teach -- eleves
+admin -- groupes
+teach -- groupes
+admin -- planning
+teach -- planning
+admin -- seances
+teach -- seances
+admin -- revenus
+teach -- revenus
+admin -- cfollow
+teach -- cfollow
+teach -- demper
+teach -- exo
+teach -- video
+teach -- valid
+teach -- reset
+student -- reset
+parent -- reset
+admin -- pay
+teach -- pay
+student -- pay
+parent -- pay
+student -- suivi
+parent -- suivi
+student -- listexo
+student -- submit
+student -- game
+parent -- child
+contact -- ask
+contact -- call
+contact -- book
+corr -- ia
+notif -- agent
+ask -- bot
+call -- bot
+book -- bot
+comptes ..> auth : include
+salles ..> auth : include
+dash ..> auth : include
+wa ..> auth : include
+leads ..> auth : include
+demande ..> auth : include
+eleves ..> auth : include
+groupes ..> auth : include
+planning ..> auth : include
+seances ..> auth : include
+revenus ..> auth : include
+cfollow ..> auth : include
+demper ..> auth : include
+exo ..> auth : include
+video ..> auth : include
+valid ..> auth : include
+pay ..> auth : include
+suivi ..> auth : include
+listexo ..> auth : include
+submit ..> auth : include
+game ..> auth : include
+child ..> auth : include
+gper ..> auth : include
+submit ..> corr : include
+seances ..> notif : include
+pay ..> notif : include
+demper ..> gper : extend
+valid ..> corr : extend
+call ..> ask : extend
+@enduml

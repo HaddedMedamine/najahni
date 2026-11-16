@@ -90,6 +90,76 @@ export function foldShop(start: Record<string, string[]>, events: TraceEvent[]):
   return state
 }
 
+export interface Card {
+  fields: Record<string, string | number | boolean>
+}
+
+/** Les cartes dans l'ordre ou le programme les a touchees. */
+export function foldCards(events: TraceEvent[]) {
+  const cards: Card[] = []
+  for (const e of events) {
+    if (e.t !== 'field' && e.t !== 'look') continue
+    cards[e.r] ??= { fields: {} }
+    if (e.t === 'field') cards[e.r].fields[e.k] = e.v
+  }
+  return { cards }
+}
+
+/** Les sieges de la salle apres les ecritures du programme. */
+export function foldCinema(rows: number[][], events: TraceEvent[]) {
+  const seats = rows.map((row) => [...row])
+  for (const e of events) if (e.t === 'mset') seats[e.i][e.j] = e.v
+  return seats
+}
+
+export interface Doll {
+  label: string
+  /** Valeur retournee ; undefined tant que l'appel n'est pas fini. */
+  value?: string | number | boolean
+}
+
+/** Les appels en cours et finis, du premier au plus profond. */
+export function foldCalls(events: TraceEvent[]) {
+  const dolls: Doll[] = []
+  let depth = 0
+  for (const e of events) {
+    if (e.t === 'call') {
+      dolls.length = e.d
+      dolls.push({ label: `${e.f}(${e.a})` })
+      depth = e.d + 1
+    } else if (e.t === 'ret') {
+      if (dolls[e.d]) dolls[e.d].value = e.v
+      depth = e.d
+    }
+  }
+  return { dolls, depth }
+}
+
+/** Les marches : une case du tableau, ou chaque nouvelle valeur d'une variable surveillee. */
+export function foldStairs(length: number, events: TraceEvent[]) {
+  const steps: (number | null)[] = Array.from({ length }, () => null)
+  let next = 0
+  let current = -1
+  for (const e of events) {
+    if (e.t === 'set') {
+      steps[e.i] = e.v
+      current = e.i
+    } else if (e.t === 'var' && typeof e.v === 'number') {
+      steps[next] = e.v
+      current = next
+      next = Math.min(next + 1, length - 1)
+    }
+  }
+  return { steps, current }
+}
+
+/** Valeur courante des variables, et l'historique de chacune. */
+export function foldVars(events: TraceEvent[]) {
+  const values: Record<string, (string | number | boolean)[]> = {}
+  for (const e of events) if (e.t === 'var') (values[e.k] ??= []).push(e.v)
+  return values
+}
+
 /** Etapes de l'animation : indice de fin de chaque etape (deux regards = une comparaison). */
 export function stepEnds(events: TraceEvent[]) {
   const ends: number[] = []

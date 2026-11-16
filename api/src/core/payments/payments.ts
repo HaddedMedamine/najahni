@@ -1,6 +1,7 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import type { Prisma } from '../../generated/prisma/client.js';
 import type { PrismaService } from '../prisma/prisma.service.js';
+import { monthKey } from './earnings.js';
 
 // Paiements du centre (especes uniquement).
 // Chaque eleve a SA serie de N presences dans un groupe (N = group.monthlySessions) :
@@ -76,6 +77,91 @@ async function presenceCounts(
     _count: { _all: true },
   });
   return new Map(rows.map((r) => [r.studentId, r._count._all]));
+}
+
+/** Serie de chaque presence (de la plus ancienne a la plus recente) et si elle est payee. */
+export function presenceSeries<T>(presences: T[], size: number, paidNumbers: number[]) {
+  const n = Math.max(1, size);
+  const paid = new Set(paidNumbers);
+  return presences.map((presence, index) => {
+    const series = Math.floor(index / n) + 1;
+    return { presence, series, paid: paid.has(series) };
+  });
+}
+
+/**
+ * Feuille d'un groupe : les dates de presence de chaque eleve, payees ou non,
+ * pour un mois (heure de Tunis) ou depuis le debut. Les series comptent toujours
+ * depuis le debut, comme dans seriesStatus.
+ */
+export async function groupSheet(
+  prisma: PrismaService,
+  groupId: string,
+  teacherId: string,
+  month?: string,
+) {
+  const group = await prisma.group.findFirst({
+    where: { id: groupId, teacherId },
+    select: {
+      id: true,
+      name: true,
+      subject: true,
+      monthlySessions: true,
+      students: {
+        select: {
+          leftAt: true,
+          student: { select: { id: true, user: personName } },
+        },
+      },
+    },
+  });
+  if (!group) throw new NotFoundException('Groupe introuvable');
+
+  const [attendances, installments] = await Promise.all([
+    prisma.attendance.findMany({
+      where: {
+        status: { in: COUNTED },
+        session: { groupId, status: 'DONE' },
+      },
+      select: {
+        studentId: true,
+        session: { select: { id: true, startsAt: true } },
+      },
+      orderBy: { session: { startsAt: 'asc' } },
+    }),
+    prisma.installment.findMany({
+      where: { groupId },
+      select: { studentId: true, number: true },
+    }),
+  ]);
+
+  const rows = group.students.flatMap(({ leftAt, student }) => {
+    const all = presenceSeries(
+      attendances.filter((a) => a.studentId === student.id),
+      group.monthlySessions,
+      installments.filter((i) => i.studentId === student.id).map((i) => i.number),
+    );
+    const presences = all
+      .filter(({ presence }) => !month || monthKey(presence.session.startsAt) === month)
+      .map(({ presence, series, paid }) => ({
+        sessionId: presence.session.id,
+        startsAt: presence.session.startsAt,
+        series,
+        paid,
+      }));
+    // Un eleve parti reste visible pour les mois ou il est venu
+    if (leftAt && presences.length === 0) return [];
+    return [{ student, left: Boolean(leftAt), presences }];
+  });
+  rows.sort((a, b) => a.student.user.lastName.localeCompare(b.student.user.lastName));
+
+  const { students: _members, ...info } = group;
+  return {
+    group: info,
+    month: month ?? null,
+    months: [...new Set(attendances.map((a) => monthKey(a.session.startsAt)))].sort(),
+    rows,
+  };
 }
 
 /** Calcule l'etat des paiements de tous les eleves (actifs) d'un groupe. */
@@ -269,32 +355,41 @@ export async function markSeriesPaid(
   prisma: PrismaService,
   groupId: string,
   studentId: string,
+  series: number,
   receivedByUserId: string,
   teacherId?: string,
 ) {
+  const unchanged = { changed: false, number: null };
   const { rows } = await computeGroup(prisma, groupId, teacherId);
   const row = rows.find((r) => r.student.id === studentId);
   if (!row) throw new NotFoundException("Cet eleve n'est pas dans le groupe");
-  if (row.nextToPay === null) return { changed: false, number: null };
+  // Un second clic demande une serie deja reglee : il ne doit pas payer la suivante
+  if (row.nextToPay !== series) return unchanged;
 
-  await prisma.installment.create({
-    data: {
-      studentId,
-      groupId,
-      number: row.nextToPay,
-      amountDue: row.fee,
-      amountPaid: row.fee,
-      status: 'PAID',
-      payments: {
-        create: {
-          amount: row.fee,
-          method: 'CASH',
-          receivedById: receivedByUserId,
+  try {
+    await prisma.installment.create({
+      data: {
+        studentId,
+        groupId,
+        number: series,
+        amountDue: row.fee,
+        amountPaid: row.fee,
+        status: 'PAID',
+        payments: {
+          create: {
+            amount: row.fee,
+            method: 'CASH',
+            receivedById: receivedByUserId,
+          },
         },
       },
-    },
-  });
-  return { changed: true, number: row.nextToPay };
+    });
+  } catch (error) {
+    // Deux requetes simultanees : la contrainte unique n'en garde qu'une
+    if ((error as { code?: string }).code === 'P2002') return unchanged;
+    throw error;
+  }
+  return { changed: true, number: series };
 }
 
 /** Annule le dernier paiement de l'eleve (erreur de saisie). */

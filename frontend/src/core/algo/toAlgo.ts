@@ -58,6 +58,9 @@ export function exprToAlgo(code: string): string {
   s = s.replace(/Sous_Chaine\(([^,]+), \s*,/g, 'Sous_Chaine($1, 0,').replace(/Sous_Chaine\(([^,]+), ([^,]+), \s*\)/g, 'Sous_Chaine($1, $2, Long($1))')
   return s
     .replace(/\uE000(\d+)\uE000/g, (_, i) => strings[Number(i)])
+    // E["nom"] -> E.nom ; M[i][j] -> M[i, j]
+    .replace(/\[\s*"([\p{L}_][\p{L}\p{N}_]*)"\s*\]/gu, '.$1')
+    .replace(/\]\[/g, ', ')
     .replace(/\s+/g, ' ')
     .trim()
 }
@@ -251,6 +254,28 @@ export function pythonToAlgo(code: string): AlgoDraft {
     if ((m = /^(\w+)\s*=\s*(\w+)\.(readline|read)\(\)(?:\.(?:strip|rstrip)\(.*\))?$/.exec(t))) {
       guess(m[1], 'Chaîne')
       out.push(pad() + `${m[3] === 'read' ? 'Lire' : 'Lire_ligne'}(${m[2]}, ${m[1]})`)
+      continue
+    }
+    // E = dict(), T = array(...) : l'eleve les declare dans le bloc Type et le TDO
+    if (/^\w+\s*=\s*dict\(.*\)$/.test(t) || /^\w+\s*=\s*array\(\[(\[|dict)/.test(t)) continue
+    // E["nom"] = input("...") -> Ecrire("..."), Lire(E.nom)
+    if ((m = /^(\w+(?:\[[^=]*\])+)\s*=\s*(?:int|float)?\(?\s*input\((.*?)\)\s*\)?$/.exec(t))) {
+      const variable = exprToAlgo(m[1])
+      out.push(pad() + (m[2].trim() ? `Ecrire(${exprToAlgo(m[2])}), Lire(${variable})` : `Lire(${variable})`))
+      continue
+    }
+    // E["nom"] = x, M[i][j] = x
+    if ((m = /^(\w+(?:\[[^=]*\])*\[[^=]*\])\s*=\s*([^=].*)$/.exec(t)) && /"|\]\[/.test(m[1])) {
+      out.push(pad() + `${exprToAlgo(m[1])} ← ${exprToAlgo(m[2])}`)
+      continue
+    }
+    // Fichiers de donnees : dump(x, F), x = load(F)
+    if ((m = /^dump\((.*),\s*(\w+)\)$/.exec(t))) {
+      out.push(pad() + `Ecrire(${m[2]}, ${exprToAlgo(m[1])})`)
+      continue
+    }
+    if ((m = /^(\S+)\s*=\s*load\((\w+)\)$/.exec(t))) {
+      out.push(pad() + `Lire(${m[2]}, ${exprToAlgo(m[1])})`)
       continue
     }
     // x = int(input("...")) -> Ecrire("..."), Lire(x)

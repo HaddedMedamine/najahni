@@ -142,6 +142,7 @@ export class CodingService implements OnApplicationBootstrap {
       levels: levels.map(({ data, ...level }, index) => {
         const p = progress.get(level.id);
         const unlocked =
+          allUnlocked() ||
           previousDone ||
           Boolean(p?.completedAt) ||
           (index === 0 && opensChapters(kind));
@@ -158,20 +159,34 @@ export class CodingService implements OnApplicationBootstrap {
     }));
   }
 
+  /** Un niveau ne s'ouvre, et ne s'enregistre, qu'apres la reussite du precedent. */
+  private assertUnlocked(
+    level: { id: string; kind: CodeLevelKind; chapterId: string },
+    ordered: { id: string; chapterId: string }[],
+    progress: Awaited<ReturnType<CodingService['progressByLevel']>>,
+  ) {
+    const previous = ordered[ordered.findIndex((l) => l.id === level.id) - 1];
+    const opensChapter =
+      opensChapters(level.kind) && previous?.chapterId !== level.chapterId;
+    if (
+      previous &&
+      !allUnlocked() &&
+      !opensChapter &&
+      !progress.get(previous.id)?.completedAt
+    ) {
+      throw new ForbiddenException(
+        'Reussissez le niveau precedent pour ouvrir celui-ci',
+      );
+    }
+  }
+
   /** Un niveau ouvert, sans les solutions (Python, algorithme et TDO). */
   async studentLevel(userId: string, levelId: string) {
     const { student, track } = await this.studentTrack(userId);
     const { level, ordered } = await this.levelInTrack(levelId, track);
     const progress = await this.progressByLevel(student.id);
+    this.assertUnlocked(level, ordered, progress);
     const index = ordered.findIndex((l) => l.id === levelId);
-    const previous = ordered[index - 1];
-    const opensChapter =
-      opensChapters(level.kind) && previous?.chapterId !== level.chapterId;
-    if (previous && !opensChapter && !progress.get(previous.id)?.completedAt) {
-      throw new ForbiddenException(
-        'Reussissez le niveau precedent pour ouvrir celui-ci',
-      );
-    }
     const { solution: _solution, data, ...visible } = level;
     const p = progress.get(levelId);
     return {
@@ -209,7 +224,8 @@ export class CodingService implements OnApplicationBootstrap {
         ? (attempt.tdo as unknown as Prisma.InputJsonValue)
         : undefined;
     const { student, track } = await this.studentTrack(userId);
-    const { level } = await this.levelInTrack(levelId, track);
+    const { level, ordered } = await this.levelInTrack(levelId, track);
+    this.assertUnlocked(level, ordered, await this.progressByLevel(student.id));
     const before = await this.prisma.codeProgress.findUnique({
       where: { studentId_levelId: { studentId: student.id, levelId } },
     });
@@ -386,6 +402,9 @@ export class CodingService implements OnApplicationBootstrap {
     return counts;
   }
 }
+
+/** Pour essayer le contenu : CODING_UNLOCK_ALL=true dans .env ouvre toutes les missions. */
+const allUnlocked = () => process.env.CODING_UNLOCK_ALL === 'true';
 
 /** Aventure Bac : la premiere mission de chaque chapitre est toujours ouverte. */
 const opensChapters = (kind: CodeLevelKind) => kind === 'STORY';

@@ -19,7 +19,7 @@ import { MouseWorkspace } from '@/components/shared/coding/MouseWorkspace'
 import { SolutionPanel, StoryIntro } from '@/components/shared/coding/story/StoryIntro'
 import { StoryScene } from '@/components/shared/coding/story/StoryScene'
 import { useTracePlayer } from '@/components/shared/coding/story/useTracePlayer'
-import type { CodeLanguage } from '@/components/shared/coding/types'
+import type { CodeLanguage, StoryStage } from '@/components/shared/coding/types'
 import { Button } from '@/components/ui/button'
 import { ErrorState, TableSkeleton } from '@/components/shared/States'
 import type { TdoRow } from '@/core/algo/transpile'
@@ -301,6 +301,14 @@ const FILE_SNIPPETS = [
   { label: 'Fermer', text: 'Fermer(F)' },
 ]
 
+// Le squelette du bloc Type : les noms restent a choisir
+const TYPE_SNIPPETS = [{ label: 'Type', text: 'Type\n    Nom = Enregistrement\n        champ : Entier\n    Fin\n' }]
+const STORY_SNIPPETS: Partial<Record<StoryStage['type'], typeof FILE_SNIPPETS>> = {
+  shop: FILE_SNIPPETS,
+  archive: FILE_SNIPPETS,
+  cards: TYPE_SNIPPETS,
+}
+
 /** Aventure Bac : introduction, puis la scene rejoue ce que le programme a vraiment fait. */
 function StoryLevel({ level }: { level: Level<'STORY'> }) {
   const { t } = useTranslation()
@@ -359,7 +367,7 @@ function StoryLevel({ level }: { level: Level<'STORY'> }) {
           playing: player.playing,
           runLine: player.line,
           checkLabel: t('coding.run'),
-          snippets: story.stage.type === 'shop' ? FILE_SNIPPETS : [],
+          snippets: STORY_SNIPPETS[story.stage.type] ?? [],
           aside: story.solved && <SolutionPanel solved={story.solved} language={language} />,
         }}
         scene={

@@ -61,7 +61,7 @@ const gameHighlight = HighlightStyle.define([
 
 const KEYWORDS =
   /^(si|alors|sinon|finsi|pour|de|à|a|faire|finpour|tantque|fintantque|répéter|repeter|jusqu'à|jusqu'a|retourner|fin)\b/i
-const STRUCTURE = /^(algorithme|debut|début|fonction|procédure|procedure)\b/i
+const STRUCTURE = /^(algorithme|debut|début|fonction|procédure|procedure|types?|enregistrement|tableau|lignes?|colonnes?)\b/i
 const OPERATORS = /^(div|mod|et|ou|non)\b/i
 const BUILTINS =
   /^(lire_ligne|lire|ecrire_nl|ecrire|ouvrir|fermer|fin_fichier|long|pos|sous_chaine|effacer|majus|convch|valeur|estnum|ord|chr|aléa|alea|ent|arrondi|racinecarré|racinecarre|abs)\b/i

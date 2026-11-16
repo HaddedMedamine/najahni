@@ -814,3 +814,60 @@ model CodeProgress {
   @@index([levelId])
   @@map("code_progress")
 }
+
+// Agent telephone / WhatsApp : ce qu'il laisse a l'equipe
+enum AgentChannel {
+  WHATSAPP
+  PHONE
+}
+
+enum AgentLeadReason {
+  QUESTION // question hors de la fiche du centre
+  ABSENCE
+  PAYMENT
+}
+
+enum AgentLeadStatus {
+  NEW
+  CALLED
+  DONE
+}
+
+enum AgentOrderStatus {
+  NEW
+  CONFIRMED
+  DELIVERED
+  CANCELLED
+}
+
+model AgentLead {
+  id        String          @id @default(uuid())
+  name      String
+  phone     String
+  channel   AgentChannel
+  reason    AgentLeadReason
+  question  String
+  status    AgentLeadStatus @default(NEW)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  @@index([status, createdAt])
+  @@index([phone])
+  @@map("agent_leads")
+}
+
+model AgentOrder {
+  id        String           @id @default(uuid())
+  name      String
+  phone     String
+  channel   AgentChannel
+  location  String
+  items     String
+  status    AgentOrderStatus @default(NEW)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@index([status, createdAt])
+  @@index([phone])
+  @@map("agent_orders")
+}

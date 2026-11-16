@@ -156,7 +156,8 @@ export function ShopScene({ bags, events, last, ms, outcome }: Props) {
       </g>
 
       {/* Le rajel */}
-      <g transform="translate(330 256)" className={cn(outcome === 'win' && 'game-hop')}>
+      <g transform="translate(330 256)">
+       <g className={cn(outcome === 'win' && 'game-hop')}>
         <ellipse cy={6} rx={34} ry={7} fill="#000" opacity={0.25} />
         <rect x={-18} y={-44} width={14} height={46} rx={6} fill="#2d3a5c" />
         <rect x={4} y={-44} width={14} height={46} rx={6} fill="#2d3a5c" />
@@ -182,13 +183,16 @@ export function ShopScene({ bags, events, last, ms, outcome }: Props) {
         <circle cx={8} cy={-124} r={2.4} fill="#2b1b1b" />
         <path d={state.alert ? 'M-5 -112 a5 5 0 1 0 10 0 a5 5 0 1 0 -10 0' : 'M-7 -114 Q0 -108 7 -114'} fill={state.alert ? '#2b1b1b' : 'none'} stroke="#2b1b1b" strokeWidth={2} strokeLinecap="round" />
         {state.alert && (
-          <g transform="translate(0 -176)" className="game-pop">
-            <circle r={21} fill="#ffc857" stroke="#1b1405" strokeWidth={2.5} />
-            <text textAnchor="middle" y={11} fontSize={32} fontWeight={900} fill="#1b1405">
-              !
-            </text>
+          <g transform="translate(0 -176)">
+            <g className="game-pop">
+              <circle r={21} fill="#ffc857" stroke="#1b1405" strokeWidth={2.5} />
+              <text textAnchor="middle" y={11} fontSize={32} fontWeight={900} fill="#1b1405">
+                !
+              </text>
+            </g>
           </g>
         )}
+       </g>
       </g>
 
       {/* Table des produits sortis */}

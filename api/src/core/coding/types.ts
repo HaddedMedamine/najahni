@@ -3,16 +3,11 @@ import type { CodeTrack } from '../../generated/prisma/client.js';
 /** Ligne du TDO (meme format que frontend/src/core/algo/transpile.ts). */
 export interface TdoRow {
   name: string;
-  type:
-    | 'Entier'
-    | 'Réel'
-    | 'Booléen'
-    | 'Caractère'
-    | 'Chaîne'
-    | 'Tableau'
-    | 'Fichier';
-  elem?: 'Entier' | 'Réel' | 'Booléen' | 'Caractère' | 'Chaîne';
+  /** Type du programme, ou nouveau type declare dans le bloc Type. */
+  type: string;
+  elem?: string;
   size?: number;
+  cols?: number;
 }
 
 /** Grille de la souris (meme format que frontend/src/core/python/grid.ts). */
@@ -41,6 +36,11 @@ export interface PythonTest {
   hidden?: boolean;
   files?: Record<string, string>;
   closed?: boolean;
+  absent?: string[];
+  records?: Record<string, unknown[]>;
+  calls?: string[];
+  recursive?: boolean;
+  watch?: string[];
   label?: string;
 }
 
@@ -57,6 +57,13 @@ export interface DoorData {
 export type TraceEvent =
   | { t: 'get'; i: number }
   | { t: 'set'; i: number; v: number }
+  | { t: 'field'; r: number; k: string; v: string | number | boolean }
+  | { t: 'look'; r: number; k: string }
+  | { t: 'mget'; i: number; j: number }
+  | { t: 'mset'; i: number; j: number; v: number }
+  | { t: 'call'; f: string; a: string; d: number }
+  | { t: 'ret'; f: string; v: string | number | boolean; d: number }
+  | { t: 'var'; k: string; v: string | number | boolean }
   | { t: 'open'; file: string; mode: string }
   | { t: 'write'; file: string; text: string }
   | { t: 'read'; file: string; text: string }
@@ -66,7 +73,20 @@ export type TraceEvent =
 /** Decor d'une mission et son etat de depart. */
 export type StoryStage =
   | { type: 'penguins'; values: number[]; target: 'asc' | 'desc' }
-  | { type: 'shop'; bags: Record<string, string[]> };
+  | { type: 'shop'; bags: Record<string, string[]> }
+  | { type: 'cards'; title: string; fields: string[]; count: number }
+  | { type: 'cinema'; rows: number[][]; mode: 'seats' | 'numbers' }
+  | { type: 'archive'; drawers: Record<string, string[]> }
+  | { type: 'dolls' }
+  | { type: 'stairs'; length: number }
+  | { type: 'machine'; vars: string[] }
+  | {
+      type: 'target';
+      variable: string;
+      exact: number;
+      min: number;
+      max: number;
+    };
 
 /** Mission du jeu "Aventure Bac" : une porte, avec objectif, principe et animation. */
 export interface StoryData extends DoorData {

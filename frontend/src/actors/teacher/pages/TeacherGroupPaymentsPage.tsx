@@ -19,21 +19,23 @@ export function TeacherGroupPaymentsPage() {
       onRetry={query.refetch}
       backHref="/teacher/payments"
       pendingStudentId={toggle.isPending ? (toggle.variables?.studentId ?? null) : null}
-      onPay={(row) =>
+      onPay={(row, series) =>
         toggle.mutate(
-          { groupId: id, studentId: row.student.id, paid: true },
+          { groupId: id, studentId: row.student.id, series },
           {
-            onSuccess: (result) =>
+            onSuccess: (result) => {
+              if (!result.changed) return
               toast.success(t('payments.markedPaid', { name: fullName(row.student.user), number: result.number }), {
                 // Plusieurs series en retard : il en reste a regler
                 description: row.dueSeries.length > 1 ? t('payments.stillDue') : undefined,
-              }),
+              })
+            },
           },
         )
       }
       onCancel={(row) =>
         toggle.mutate(
-          { groupId: id, studentId: row.student.id, paid: false },
+          { groupId: id, studentId: row.student.id, series: null },
           { onSuccess: () => toast.success(t('payments.cancelled')) },
         )
       }

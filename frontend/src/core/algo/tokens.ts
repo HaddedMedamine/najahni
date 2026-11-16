@@ -11,6 +11,8 @@ export interface Token {
   key: string
   /** `à` accentue : separe sans ambiguite les bornes d'une boucle Pour. */
   accent?: boolean
+  /** « fin » ou « debut » employe comme nom de variable, pas comme mot-cle. */
+  variable?: boolean
 }
 
 /** Minuscules sans accents : "Répéter" -> "repeter", "Aléa" -> "alea". */

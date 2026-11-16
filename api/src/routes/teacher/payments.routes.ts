@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Delete,
   Get,
@@ -15,6 +16,7 @@ import {
   CurrentUser,
   Roles,
 } from '../../core/auth/decorators.js';
+import { PaySeriesDto } from '../../core/payments/pay.dto.js';
 
 class EarningsQuery {
   @ApiPropertyOptional({ example: '2026-10', description: 'Mois AAAA-MM (defaut : mois en cours)' })
@@ -51,14 +53,25 @@ export class TeacherPaymentsController {
     return this.payments.group(user.id, groupId);
   }
 
+  /** Dates de presence des eleves d'un de mes groupes, payees ou non, pour un mois ou depuis le debut. */
+  @Get('groups/:groupId/sheet')
+  sheet(
+    @CurrentUser() user: AuthUser,
+    @Param('groupId', ParseUUIDPipe) groupId: string,
+    @Query() query: EarningsQuery,
+  ) {
+    return this.payments.sheet(user.id, groupId, query.month);
+  }
+
   /** L'eleve remet son paiement en especes (serie a payer, ou serie en cours a l'avance). */
   @Post('groups/:groupId/students/:studentId/pay')
   markPaid(
     @CurrentUser() user: AuthUser,
     @Param('groupId', ParseUUIDPipe) groupId: string,
     @Param('studentId', ParseUUIDPipe) studentId: string,
+    @Body() dto: PaySeriesDto,
   ) {
-    return this.payments.markPaid(user.id, groupId, studentId);
+    return this.payments.markPaid(user.id, groupId, studentId, dto.series);
   }
 
   /** Annuler le dernier paiement de l'eleve (erreur de saisie). */

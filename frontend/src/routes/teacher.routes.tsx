@@ -15,6 +15,7 @@ export const teacherRoutes: RouteObject = {
     { path: 'payments/groups/:id', ...lazyPage(() => import('@/actors/teacher/pages/TeacherGroupPaymentsPage'), 'TeacherGroupPaymentsPage') },
     { path: 'groups',...lazyPage(() => import('@/actors/teacher/pages/TeacherGroupsPage'), 'TeacherGroupsPage') },
     { path: 'groups/:id', ...lazyPage(() => import('@/actors/teacher/pages/TeacherGroupDetailPage'), 'TeacherGroupDetailPage') },
+    { path: 'groups/:id/sheet', ...lazyPage(() => import('@/actors/teacher/pages/TeacherSheetPage'), 'TeacherSheetPage') },
     { path: 'coding', ...lazyPage(() => import('@/actors/teacher/pages/TeacherCodingFollowPage'), 'TeacherCodingFollowPage') },
     { path: 'coding/:id', ...lazyPage(() => import('@/actors/teacher/pages/TeacherCodingStudentPage'), 'TeacherCodingStudentPage') },
   ],

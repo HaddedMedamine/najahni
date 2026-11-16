@@ -214,6 +214,10 @@ El code yetexécuta fi Python 7a9i9i, w [harness.ts](../frontend/src/core/python
 |---|---|---|
 | `_Suivi` | Tableau el tris | Kol lecture (`get`) w kol écriture (`set`), w el ligne |
 | `_Fichier` | Fichier ta7t `open()` | `open`, `write`, `read`, `eof`, `close` |
+| `_Fiche` | `dict()` mta3 el programme | Kol champ yetkteb (`field`) wala yet9ra (`look`) |
+| `_Matrice` | Matrice el tests | Kol case tet9ra (`mget`) wala tetkteb (`mset`) |
+| `calls` fel test | Fonction récursive | Kol appel (`call`) w kol retour (`ret`), b niveau-ou |
+| `watch` fel test | Variables mte3 el élève | Kol tabdil 9ima (`var`), b `sys.settrace` |
 
 Ba3d, [trace.ts](../frontend/src/components/shared/coding/story/trace.ts) y7essb 7alet el scène, w
 [useTracePlayer.ts](../frontend/src/components/shared/coding/story/useTracePlayer.ts) yal3ebha khatwa
@@ -224,6 +228,41 @@ khatwa. Ya3ni el animation mouch msajjla : ken el élève ghlet, el ghalta tban 
   saf (`aux`). Tabdil bla `aux` : pingouin yedh3a3 w yo93od barra.
 - **Sou9** ([ShopScene.tsx](../frontend/src/components/shared/coding/story/ShopScene.tsx)) : el sac howa
   el fichier, kol produit ligne. Ki `Fin_fichier` twalli Vrai, `!` yodhhor fou9 ras el rajel.
+
+- **Carte** ([CardScene.tsx](../frontend/src/components/shared/coding/story/CardScene.tsx)) : kol enregistrement
+  carte, kol champ ligne fiha.
+- **Cinéma** ([CinemaScene.tsx](../frontend/src/components/shared/coding/story/CinemaScene.tsx)) : el matrice
+  salle, kol case siège.
+
+- **Archives** ([ArchiveScene.tsx](../frontend/src/components/shared/coding/story/ArchiveScene.tsx)) : fichier de
+  données tiroir, kol objet fiche.
+- **Poupées, marches, machine, cible** ([NumberScenes.tsx](../frontend/src/components/shared/coding/story/NumberScenes.tsx)) :
+  récursivité, récurrence, arithmétique w approximation.
+
+### El TDO
+
+Champ wa7ed, ligne lkol déclaration ([tdo.ts](../frontend/src/core/algo/tdo.ts)) :
+
+```
+i, j, n : Entier
+T : Tableau de 50 Entier
+M : Tableau de 3 lignes * 4 colonnes d'entiers
+F : Fichier texte
+E : Eleve
+```
+
+### Les enregistrements w les matrices fel traducteur
+
+El TDNT yetkteb fi bloc `Type` 9bal `ALGORITHME` ([types.ts](../frontend/src/core/algo/types.ts)), w el types
+eli fih yetla3ou fel TDO.
+
+| Algorithme | Python |
+|---|---|
+| `Eleve = Enregistrement ... Fin`, w `E : Eleve` | `E = dict(nom=str(), moy=float())` |
+| `Lire(E.moy)` | `E["moy"] = float(input())` |
+| `T[i].nom` | `T[i]["nom"]` |
+| `Mat = Tableau de 3 lignes * 4 colonnes d'entiers` | `M = array([[int()] * 4] * 3)` |
+| `M[i, j]` | `M[i][j]` |
 
 ### Les fichiers fel traducteur
 
@@ -236,6 +275,8 @@ khatwa. Ya3ni el animation mouch msajjla : ken el élève ghlet, el ghalta tban 
 | `Ecrire_nl(F, ch)` | `F.write(ch + "\n")` |
 | `Fin_fichier(F)` | `Fin_fichier(F)` (fonction mta3 el harness) |
 | `Fermer(F)` | `F.close()` |
+| `Ouvrir("n.dat", F, "wb")`, `Ecrire(F, x)` | `dump(x, F)` (`from pickle import *`) |
+| `Ouvrir("n.dat", F, "rb")`, `Lire(F, x)` | `x = load(F)` |
 
 El fichiers yet7attou fi disque virtuel mta3 Pyodide (`/tmp/najahni`), w yetfass5ou 9bal kol essai.
 Fel test, `files` ya3ti el fichiers mta3 el bdeya, w `closed: true` yfachel ken el programme ma sakkarch.

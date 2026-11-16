@@ -1,6 +1,7 @@
 import {
   Baby,
   Banknote,
+  BookOpen,
   CalendarDays,
   Code2,
   Coins,
@@ -11,6 +12,7 @@ import {
   LayoutDashboard,
   type LucideIcon,
   MessageCircle,
+  PhoneForwarded,
   UserRound,
   Users,
   UsersRound,
@@ -40,6 +42,8 @@ export const NAV_BY_ROLE: Record<Role, NavItem[]> = {
     { to: '/admin/rooms', label: 'nav.rooms', icon: DoorOpen },
     { to: '/admin/coding', label: 'nav.coding', icon: Code2 },
     { to: '/admin/whatsapp', label: 'nav.whatsapp', icon: MessageCircle },
+    { to: '/admin/agent/leads', label: 'nav.agentLeads', icon: PhoneForwarded },
+    { to: '/admin/agent/orders', label: 'nav.agentOrders', icon: BookOpen },
   ],
   TEACHER: [
     { to: '/teacher', label: 'nav.planning', icon: CalendarDays, end: true },

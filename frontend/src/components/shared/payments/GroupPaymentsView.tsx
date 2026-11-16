@@ -1,5 +1,5 @@
 import { ArrowLeft, Info, Undo2, Users } from 'lucide-react'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
@@ -19,11 +19,14 @@ interface Props {
   isError: boolean
   onRetry: () => void
   backHref: string
-  onPay: (row: StudentSeries) => void
+  onPay: (row: StudentSeries, series: number) => void
   onCancel: (row: StudentSeries) => void
   /** Eleve en cours d'enregistrement (desactive sa ligne). */
   pendingStudentId: string | null
 }
+
+/** Un second appui trop rapide est un double clic, pas le paiement de la serie suivante. */
+const PAY_GUARD_MS = 1500
 
 const STATE_BADGE = { PAID: 'success', DUE: 'danger', PENDING: 'default' } as const
 
@@ -41,6 +44,15 @@ export function GroupPaymentsView({
   const { t } = useTranslation()
   // Annuler un paiement demande une confirmation (erreur de saisie)
   const [toCancel, setToCancel] = useState<StudentSeries | null>(null)
+  const lastPay = useRef<{ studentId: string; at: number } | null>(null)
+
+  const pay = (row: StudentSeries) => {
+    if (row.nextToPay === null) return
+    const now = Date.now()
+    if (lastPay.current?.studentId === row.student.id && now - lastPay.current.at < PAY_GUARD_MS) return
+    lastPay.current = { studentId: row.student.id, at: now }
+    onPay(row, row.nextToPay)
+  }
 
   if (isLoading) return <TableSkeleton rows={6} />
   if (isError || !data) return <ErrorState onRetry={onRetry} />
@@ -171,7 +183,7 @@ export function GroupPaymentsView({
                       aria-checked={paid}
                       aria-label={fullName(row.student.user)}
                       disabled={busy}
-                      onClick={() => (paid ? setToCancel(row) : onPay(row))}
+                      onClick={() => (paid ? setToCancel(row) : pay(row))}
                       className="rounded-full outline-none focus-visible:ring-4 focus-visible:ring-primary/20 disabled:opacity-60"
                     >
                       <StatusSwitch

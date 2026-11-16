@@ -4,6 +4,7 @@ import { monthlyEarnings } from '../../core/payments/earnings.js';
 import {
   cancelLastPayment,
   groupPayments,
+  groupSheet,
   markSeriesPaid,
   paymentsOverview,
 } from '../../core/payments/payments.js';
@@ -33,11 +34,22 @@ export class TeacherPaymentsService {
     return groupPayments(this.prisma, groupId, await this.teacherId(userId));
   }
 
-  async markPaid(userId: string, groupId: string, studentId: string) {
+  /** Dates de presence de chaque eleve d'un de mes groupes, payees ou non. */
+  async sheet(userId: string, groupId: string, month?: string) {
+    return groupSheet(this.prisma, groupId, await this.teacherId(userId), month);
+  }
+
+  async markPaid(
+    userId: string,
+    groupId: string,
+    studentId: string,
+    series: number,
+  ) {
     const result = await markSeriesPaid(
       this.prisma,
       groupId,
       studentId,
+      series,
       userId,
       await this.teacherId(userId),
     );

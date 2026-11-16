@@ -23,6 +23,10 @@ export interface RequestMeta {
 }
 
 const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000;
+/** Une nouvelle demande pour le meme compte n'envoie rien pendant ce delai. */
+const PASSWORD_RESET_COOLDOWN_MS = 5 * 60 * 1000;
+/** Deux onglets peuvent presenter le meme refresh token presque en meme temps. */
+const REFRESH_REUSE_GRACE_MS = 10 * 1000;
 
 const sha256 = (value: string) =>
   createHash('sha256').update(value).digest('hex');
@@ -61,6 +65,9 @@ export class AuthService {
       Number(config.get('JWT_REFRESH_TTL_DAYS', 30)) * 24 * 60 * 60 * 1000;
     this.appUrl = (config.get<string>('APP_URL') ?? 'http://localhost:5173').replace(/\/$/, '');
     this.center = config.get('CENTER_NAME') ?? 'Najahni';
+    if (!config.get('APP_URL')) {
+      this.logger.warn('APP_URL absent : les liens "mot de passe oublie" pointent vers localhost');
+    }
   }
 
   async login(identifier: string, password: string, meta: RequestMeta) {
@@ -106,6 +113,9 @@ export class AuthService {
     if (!stored) throw new UnauthorizedException();
 
     if (stored.revokedAt) {
+      if (Date.now() - stored.revokedAt.getTime() < REFRESH_REUSE_GRACE_MS) {
+        throw new UnauthorizedException();
+      }
       // Un jeton deja utilise est rejoue : probable vol, on coupe toutes les sessions
       await this.revokeAllSessions(stored.userId);
       await this.audit.log({
@@ -137,13 +147,28 @@ export class AuthService {
     });
   }
 
-  /** Ne revele jamais si le compte existe. */
+  /** Repond sans attendre l'envoi : la duree ne revele pas si le compte existe. */
+  requestPasswordReset(identifier: string, meta: RequestMeta) {
+    this.forgotPassword(identifier, meta).catch((e) => {
+      this.logger.error(`Mot de passe oublie : ${(e as Error).message}`);
+    });
+  }
+
   async forgotPassword(identifier: string, meta: RequestMeta) {
     const user = await this.findByIdentifier(identifier);
     if (!user || !user.isActive) return;
 
-    const token = newOpaqueToken();
     const now = new Date();
+    const recent = await this.prisma.passwordReset.findFirst({
+      where: {
+        userId: user.id,
+        createdAt: { gte: new Date(now.getTime() - PASSWORD_RESET_COOLDOWN_MS) },
+      },
+      select: { id: true },
+    });
+    if (recent) return;
+
+    const token = newOpaqueToken();
     // Une seule demande valable a la fois : les anciens liens ne marchent plus
     await this.prisma.$transaction([
       this.prisma.passwordReset.updateMany({
@@ -210,8 +235,9 @@ export class AuthService {
         this.logger.error(`WhatsApp de reinitialisation : ${(e as Error).message}`);
       }
     }
-    // Ni email ni WhatsApp disponibles (developpement) : lien dans les logs du serveur
-    this.logger.warn(`Lien de reinitialisation pour ${user.id} (non envoye) : ${link}`);
+    // Ni email ni WhatsApp : en developpement seulement, le lien va dans les logs
+    const shown = process.env.NODE_ENV === 'production' ? '' : ` : ${link}`;
+    this.logger.warn(`Lien de reinitialisation pour ${user.id} non envoye${shown}`);
     return 'none';
   }
 

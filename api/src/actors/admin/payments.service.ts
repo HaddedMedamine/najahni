@@ -30,11 +30,17 @@ export class PaymentsService {
     return groupPayments(this.prisma, groupId);
   }
 
-  async markPaid(groupId: string, studentId: string, actorId: string) {
+  async markPaid(
+    groupId: string,
+    studentId: string,
+    series: number,
+    actorId: string,
+  ) {
     const result = await markSeriesPaid(
       this.prisma,
       groupId,
       studentId,
+      series,
       actorId,
     );
     if (result.changed) {

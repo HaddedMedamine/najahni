@@ -53,6 +53,16 @@ export interface TestCase {
   files?: Record<string, string>
   /** Le programme doit fermer tous ses fichiers. */
   closed?: boolean
+  /** Textes qui ne doivent pas etre affiches. */
+  absent?: string[]
+  /** Objets des fichiers de donnees presents avant le programme. */
+  records?: Record<string, unknown[]>
+  /** Fonctions dont les appels sont notes. */
+  calls?: string[]
+  /** La fonction doit s'appeler elle-meme. */
+  recursive?: boolean
+  /** Variables dont les changements sont notes (premier test). */
+  watch?: string[]
   /** Ce que verifie le test, en clair (remplace `expr` a l'affichage). */
   label?: string
 }
@@ -61,6 +71,13 @@ export interface TestCase {
 export type TraceEvent = { line?: number | null } & (
   | { t: 'get'; i: number }
   | { t: 'set'; i: number; v: number }
+  | { t: 'field'; r: number; k: string; v: string | number | boolean }
+  | { t: 'look'; r: number; k: string }
+  | { t: 'mget'; i: number; j: number }
+  | { t: 'mset'; i: number; j: number; v: number }
+  | { t: 'call'; f: string; a: string; d: number }
+  | { t: 'ret'; f: string; v: string | number | boolean; d: number }
+  | { t: 'var'; k: string; v: string | number | boolean }
   | { t: 'open'; file: string; mode: string }
   | { t: 'write'; file: string; text: string }
   | { t: 'read'; file: string; text: string }

@@ -27,7 +27,7 @@ export const useGroupPayments = (groupId: string) =>
   })
 
 export const useTogglePayment = () =>
-  useAdminMutation(({ groupId, studentId, paid }: { groupId: string; studentId: string; paid: boolean }) => {
+  useAdminMutation(({ groupId, studentId, series }: { groupId: string; studentId: string; series: number | null }) => {
     const url = `/admin/payments/groups/${groupId}/students/${studentId}/pay`
-    return (paid ? api.post(url) : api.delete(url)).then((r) => r.data as { changed: boolean; number: number | null })
+    return (series !== null ? api.post(url, { series }) : api.delete(url)).then((r) => r.data as { changed: boolean; number: number | null })
   })

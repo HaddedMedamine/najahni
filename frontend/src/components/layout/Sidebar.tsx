@@ -26,7 +26,7 @@ export function Sidebar({ user, onNavigate }: { user: Me; onNavigate?: () => voi
   const role: Role = both && pathname.startsWith('/teacher') ? 'TEACHER' : user.role
 
   return (
-    <div className="flex h-full flex-col gap-8 p-5">
+    <div className="flex h-full flex-col gap-5 p-5">
       <Logo className="px-1 pt-1" />
 
       {both && (
@@ -48,7 +48,7 @@ export function Sidebar({ user, onNavigate }: { user: Me; onNavigate?: () => voi
         </div>
       )}
 
-      <nav className="flex flex-col gap-1.5">
+      <nav className="-mx-1 flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto px-1">
         {NAV_BY_ROLE[role].map(({ to, label, icon: Icon, end }) => (
           <NavLink
             key={to}
@@ -81,8 +81,8 @@ export function Sidebar({ user, onNavigate }: { user: Me; onNavigate?: () => voi
         ))}
       </nav>
 
-      {/* Petite carte d'accueil en bas du menu */}
-      <div className="mt-auto rounded-2xl bg-gradient-to-br from-primary-soft to-sky-soft p-4">
+      {/* Petite carte d'accueil en bas du menu : le menu passe avant sur un ecran bas */}
+      <div className="hidden shrink-0 rounded-2xl bg-gradient-to-br from-primary-soft to-sky-soft p-4 [@media(min-height:1000px)]:block">
         <Sparkles className="size-5 text-primary" />
         <p className="mt-2 text-sm font-semibold">{t('app.name')}</p>
         <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{t('app.tagline')}</p>

@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Delete,
   Get,
@@ -15,6 +16,7 @@ import {
   CurrentUser,
   Roles,
 } from '../../core/auth/decorators.js';
+import { PaySeriesDto } from '../../core/payments/pay.dto.js';
 
 class PaymentsOverviewQuery {
   @ApiPropertyOptional()
@@ -58,9 +60,10 @@ export class AdminPaymentsController {
   markPaid(
     @Param('groupId', ParseUUIDPipe) groupId: string,
     @Param('studentId', ParseUUIDPipe) studentId: string,
+    @Body() dto: PaySeriesDto,
     @CurrentUser() user: AuthUser,
   ) {
-    return this.payments.markPaid(groupId, studentId, user.id);
+    return this.payments.markPaid(groupId, studentId, dto.series, user.id);
   }
 
   @Delete('groups/:groupId/students/:studentId/pay')

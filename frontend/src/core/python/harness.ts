@@ -5,7 +5,7 @@
 // que la scene rejoue ensuite : l'eleve voit ce que son propre code a fait.
 
 export const HARNESS = String.raw`
-import builtins, io, json, os, sys, traceback
+import builtins, io, json, os, pickle, sys, traceback
 
 
 class _Stop(BaseException):
@@ -84,6 +84,91 @@ class _Suivi:
         return list(self.v)
 
 
+_fiches = []
+
+
+def _numero(fiche):
+    for n, f in enumerate(_fiches):
+        if f is fiche:
+            return n
+    _fiches.append(fiche)
+    return len(_fiches) - 1
+
+
+def _simple(valeur):
+    valeur = _python(valeur)
+    return valeur if isinstance(valeur, (str, int, float, bool)) else str(valeur)
+
+
+class _Fiche(dict):
+    """Enregistrement (dict du programme) dont chaque champ lu ou ecrit est note."""
+
+    def __setitem__(self, champ, valeur):
+        dict.__setitem__(self, champ, valeur)
+        _noter(t="field", r=_numero(self), k=str(champ), v=_simple(valeur))
+
+    def __getitem__(self, champ):
+        valeur = dict.__getitem__(self, champ)
+        _noter(t="look", r=_numero(self), k=str(champ))
+        return valeur
+
+
+class _Ligne:
+    def __init__(self, matrice, i):
+        self.m = matrice
+        self.i = i
+
+    def __getitem__(self, j):
+        return self.m.lire(self.i, j)
+
+    def __setitem__(self, j, valeur):
+        self.m.ecrire(self.i, j, valeur)
+
+    def __len__(self):
+        return len(self.m.v[self.i])
+
+    def __iter__(self):
+        return iter(list(self.m.v[self.i]))
+
+
+class _Matrice:
+    """Matrice dont chaque lecture et chaque ecriture sont notees : M[i][j] ou M[i, j]."""
+
+    def __init__(self, lignes):
+        self.v = [list(ligne) for ligne in lignes]
+
+    def _case(self, i, j):
+        i, j = int(i), int(j)
+        if not (0 <= i < len(self.v) and 0 <= j < len(self.v[0])):
+            raise IndexError(f"case [{i}, {j}] : la matrice a {len(self.v)} lignes et {len(self.v[0])} colonnes")
+        return i, j
+
+    def lire(self, i, j):
+        i, j = self._case(i, j)
+        _noter(t="mget", i=i, j=j)
+        return self.v[i][j]
+
+    def ecrire(self, i, j, valeur):
+        i, j = self._case(i, j)
+        self.v[i][j] = _python(valeur)
+        _noter(t="mset", i=i, j=j, v=self.v[i][j])
+
+    def __getitem__(self, k):
+        if isinstance(k, tuple):
+            return self.lire(*k)
+        self._case(k, 0)
+        return _Ligne(self, int(k))
+
+    def __setitem__(self, k, valeur):
+        self.ecrire(*k, valeur)
+
+    def __len__(self):
+        return len(self.v)
+
+    def tolist(self):
+        return [list(ligne) for ligne in self.v]
+
+
 class _Fichier:
     """Fichier texte dont chaque operation est notee (les donnees sont dans un vrai fichier)."""
 
@@ -95,7 +180,8 @@ class _Fichier:
 
     def write(self, texte):
         n = self.reel.write(texte)
-        _noter(t="write", file=self.nom, text=texte)
+        if isinstance(texte, str):
+            _noter(t="write", file=self.nom, text=texte)
         return n
 
     def readline(self):
@@ -127,7 +213,7 @@ class _Fichier:
 
     def fin(self):
         position = self.reel.tell()
-        vide = self.reel.read(1) == ""
+        vide = not self.reel.read(1)
         self.reel.seek(position)
         if vide:
             _noter(t="eof", file=self.nom)
@@ -147,8 +233,58 @@ class _Fichier:
 
 
 def _ouvrir(nom, mode="r", *args, **options):
-    options.setdefault("encoding", "utf-8")
+    if "b" not in mode:
+        options.setdefault("encoding", "utf-8")
     return _Fichier(str(nom), mode, builtins.open(nom, mode, *args, **options))
+
+
+_dump_vrai = pickle.dump
+_load_vrai = pickle.load
+
+
+def _etiquette(objet):
+    """Ce qu'on lit sur la fiche rangee dans le fichier."""
+    if isinstance(objet, dict):
+        return " ".join(str(v) for v in dict.values(objet))
+    return str(objet)
+
+
+def _dump(objet, fichier, *args, **options):
+    objet = dict(objet) if isinstance(objet, dict) else _python(objet)
+    _dump_vrai(objet, getattr(fichier, "reel", fichier), *args, **options)
+    if isinstance(fichier, _Fichier):
+        _noter(t="write", file=fichier.nom, text=_etiquette(objet) + "\n")
+
+
+def _load(fichier, *args, **options):
+    nom = fichier.nom if isinstance(fichier, _Fichier) else None
+    try:
+        objet = _load_vrai(getattr(fichier, "reel", fichier), *args, **options)
+    except EOFError:
+        if nom:
+            _noter(t="eof", file=nom)
+        raise
+    if nom:
+        _noter(t="read", file=nom, text=_etiquette(objet) + "\n")
+    return _Fiche(objet) if isinstance(objet, dict) else objet
+
+
+# "from pickle import *" donne ces versions au programme de l'eleve
+pickle.dump = _dump
+pickle.load = _load
+
+
+def _objets(nom):
+    """Objets d'un fichier de donnees apres le programme."""
+    if not os.path.exists(nom):
+        return None
+    resultat = []
+    with builtins.open(nom, "rb") as f:
+        while True:
+            try:
+                resultat.append(_load_vrai(f))
+            except EOFError:
+                return resultat
 
 
 def _fin_fichier(fichier):
@@ -163,9 +299,10 @@ def _texte(nom):
         return f.read()
 
 
-def _preparer(fichiers):
+def _preparer(fichiers, donnees=None):
     """Dossier vide pour chaque essai, avec les fichiers de depart du test."""
     _trace.clear()
+    _fiches.clear()
     for f in _ouverts:
         f.reel.close()
     _ouverts.clear()
@@ -176,6 +313,60 @@ def _preparer(fichiers):
     for nom, texte in (fichiers or {}).items():
         with builtins.open(nom, "w", encoding="utf-8") as f:
             f.write(texte)
+    for nom, objets in (donnees or {}).items():
+        with builtins.open(nom, "wb") as f:
+            for objet in objets:
+                _dump_vrai(objet, f)
+
+
+def _montrer(valeur):
+    if isinstance(valeur, (_Suivi, _Matrice)):
+        return "T"
+    return repr(_python(valeur))
+
+
+def _suivre_appels(ns, noms):
+    """Note chaque appel et chaque retour : les appels recursifs passent aussi par ici."""
+    etat = {"niveau": 0, "max": 0}
+
+    def envelopper(nom, fonction):
+        def appel(*args):
+            _noter(t="call", f=nom, a=", ".join(_montrer(a) for a in args), d=etat["niveau"])
+            etat["niveau"] += 1
+            etat["max"] = max(etat["max"], etat["niveau"])
+            try:
+                resultat = fonction(*args)
+            finally:
+                etat["niveau"] -= 1
+            _noter(t="ret", f=nom, v=_simple(resultat) if resultat is not None else "", d=etat["niveau"])
+            return resultat
+
+        return appel
+
+    for nom in noms:
+        if callable(ns.get(nom)):
+            ns[nom] = envelopper(nom, ns[nom])
+    return etat
+
+
+def _surveiller(noms):
+    """Note chaque changement de valeur des variables surveillees."""
+    vues = {}
+
+    def ligne(frame, evenement, arg):
+        variables = frame.f_locals
+        for nom in noms:
+            if nom in variables:
+                valeur = _simple(variables[nom])
+                if vues.get(nom, vues) != valeur:
+                    vues[nom] = valeur
+                    _noter(t="var", k=nom, v=valeur)
+        return ligne
+
+    def appel(frame, evenement, arg):
+        return ligne if frame.f_code.co_filename == "<eleve>" else None
+
+    return appel
 
 
 def _erreur(e):
@@ -202,7 +393,10 @@ def _executer(code, ns, entrees, console):
     ns["open"] = _ouvrir
     ns["Fin_fichier"] = _fin_fichier
     ns["_suivi"] = _Suivi
+    ns["_matrice"] = _Matrice
+    ns["dict"] = _Fiche
     ns["_texte"] = _texte
+    ns["_objets"] = _objets
     old = sys.stdout
     sys.stdout = console
     try:
@@ -283,14 +477,25 @@ def _egal(a, b):
     return bool(a == b)
 
 
-def _un_test(code, t):
-    _preparer(t.get("files"))
+def _un_test(code, t, premier=True):
+    _preparer(t.get("files"), t.get("records"))
     console = _Console()
     ns = {"__name__": "__main__"}
+    # Le suivi des variables ralentit Python : seul le premier test est rejoue
+    if premier and t.get("watch"):
+        sys.settrace(_surveiller(t["watch"]))
+    try:
+        return _tester(code, t, ns, console)
+    finally:
+        sys.settrace(None)
+
+
+def _tester(code, t, ns, console):
     err = _executer(code, ns, t.get("inputs"), console)
     resultat = {"ok": False, "stdout": "".join(console.transcript), "error": err, "trace": _trace}
     if err:
         return resultat
+    appels = _suivre_appels(ns, t.get("calls", []))
     old = sys.stdout
     sys.stdout = console
     try:
@@ -319,6 +524,14 @@ def _un_test(code, t):
                     break
                 pos = i + len(_norm(attendu))
             resultat["got"] = "".join(console.out).strip()
+        if t.get("recursive") and appels["max"] < 2:
+            resultat["ok"] = False
+            resultat["got"] = "La fonction ne s'appelle pas elle-meme"
+        sortie = _norm("".join(console.out))
+        for mot in t.get("absent", []):
+            if _norm(mot) in sortie:
+                resultat["ok"] = False
+                resultat["got"] = f"{mot} ne doit pas etre affiche"
         if t.get("closed") and _ouverts:
             resultat["ok"] = False
             resultat["got"] = f"{_ouverts[0].nom} : fichier non ferme"
@@ -334,7 +547,7 @@ def _executer_tests(code, tests):
     # Seule la trace du premier test est rejouee par la scene
     resultats = []
     for i, t in enumerate(json.loads(tests)):
-        r = _un_test(code, t)
+        r = _un_test(code, t, i == 0)
         r["trace"] = list(r["trace"]) if i == 0 else []
         resultats.append(r)
     return json.dumps(resultats)

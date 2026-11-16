@@ -10,6 +10,7 @@ export type Expr =
   | { type: 'name'; name: string; key: string }
   | { type: 'call'; name: string; key: string; args: Expr[] }
   | { type: 'index'; target: Expr; index: Expr }
+  | { type: 'field'; target: Expr; name: string }
   | { type: 'unary'; op: 'not' | '-'; operand: Expr }
   | { type: 'binary'; op: string; left: Expr; right: Expr }
   | { type: 'in'; value: Expr; items: (Expr | { from: Expr; to: Expr })[] }
@@ -185,13 +186,22 @@ class Parser {
 
   private postfix(): Expr {
     let e = this.primary()
-    while (this.isOp('[')) {
-      this.i++
-      const index = this.or()
-      this.expectOp(']')
-      e = { type: 'index', target: e, index }
+    for (;;) {
+      if (this.isOp('[')) {
+        // M[i, j] : deux indices, comme M[i][j] en Python
+        do {
+          this.i++
+          e = { type: 'index', target: e, index: this.or() }
+        } while (this.isOp(','))
+        this.expectOp(']')
+      } else if (this.isOp('.')) {
+        this.i++
+        const field = this.peek()
+        if (field?.kind !== 'id') throw new ExprError('Nom du champ attendu apres « . »')
+        this.i++
+        e = { type: 'field', target: e, name: field.raw }
+      } else return e
     }
-    return e
   }
 
   private primary(): Expr {
@@ -254,6 +264,7 @@ const PRECEDENCE: Record<string, number> = {
 export interface Imports {
   math: boolean
   random: boolean
+  pickle: boolean
 }
 
 const level = (e: Expr): number => {
@@ -280,6 +291,8 @@ export function toPython(e: Expr, imports: Imports): string {
       return e.name
     case 'index':
       return `${sub(e.target, 9)}[${toPython(e.index, imports)}]`
+    case 'field':
+      return `${sub(e.target, 9)}[${JSON.stringify(e.name)}]`
     case 'unary':
       return e.op === 'not' ? `not ${sub(e.operand, PRECEDENCE.not)}` : `-${sub(e.operand, PRECEDENCE.neg)}`
     case 'binary': {
@@ -353,6 +366,9 @@ export function namesIn(e: Expr, out = new Map<string, string>()): Map<string, s
       namesIn(e.target, out)
       namesIn(e.index, out)
       break
+    case 'field':
+      namesIn(e.target, out)
+      break
     case 'unary':
       namesIn(e.operand, out)
       break
@@ -373,6 +389,31 @@ export function namesIn(e: Expr, out = new Map<string, string>()): Map<string, s
   return out
 }
 
+/** Acces aux champs d'une expression : E.nom, T[i].moy... */
+export function fieldsIn(e: Expr, out: Extract<Expr, { type: 'field' }>[] = []) {
+  if (e.type === 'field') {
+    out.push(e)
+    fieldsIn(e.target, out)
+  } else if (e.type === 'index') {
+    fieldsIn(e.target, out)
+    fieldsIn(e.index, out)
+  } else if (e.type === 'call') e.args.forEach((a) => fieldsIn(a, out))
+  else if (e.type === 'unary') fieldsIn(e.operand, out)
+  else if (e.type === 'binary') {
+    fieldsIn(e.left, out)
+    fieldsIn(e.right, out)
+  } else if (e.type === 'in') {
+    fieldsIn(e.value, out)
+    for (const it of e.items) {
+      if ('from' in it) {
+        fieldsIn(it.from, out)
+        fieldsIn(it.to, out)
+      } else fieldsIn(it, out)
+    }
+  }
+  return out
+}
+
 /** Modules appeles dans une expression (pour verifier qu'ils existent). */
 export function callsIn(e: Expr, out: { key: string; name: string }[] = []) {
   if (e.type === 'call') {
@@ -381,7 +422,8 @@ export function callsIn(e: Expr, out: { key: string; name: string }[] = []) {
   } else if (e.type === 'index') {
     callsIn(e.target, out)
     callsIn(e.index, out)
-  } else if (e.type === 'unary') callsIn(e.operand, out)
+  } else if (e.type === 'field') callsIn(e.target, out)
+  else if (e.type === 'unary') callsIn(e.operand, out)
   else if (e.type === 'binary') {
     callsIn(e.left, out)
     callsIn(e.right, out)

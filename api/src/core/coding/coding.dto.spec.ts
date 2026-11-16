@@ -27,12 +27,24 @@ describe('essai envoye par le navigateur', () => {
     ).resolves.toBeInstanceOf(CodeAttemptDto);
   });
 
-  it('refuse un type inconnu', async () => {
+  it("accepte un type declare par l'eleve", async () => {
     const body = {
       code: 'x',
       success: true,
       language: 'ALGO',
-      tdo: [{ name: 'x', type: 'Inconnu' }],
+      tdo: [{ name: 'T', type: 'Tableau', elem: 'Eleve', size: 50 }],
+    };
+    await expect(
+      pipe.transform(body, { type: 'body', metatype: CodeAttemptDto }),
+    ).resolves.toBeInstanceOf(CodeAttemptDto);
+  });
+
+  it('refuse un type qui n\'est pas du texte', async () => {
+    const body = {
+      code: 'x',
+      success: true,
+      language: 'ALGO',
+      tdo: [{ name: 'x', type: 5 }],
     };
     await expect(
       pipe.transform(body, { type: 'body', metatype: CodeAttemptDto }),
